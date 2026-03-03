@@ -67,6 +67,34 @@ export class ProjectsService {
     return project;
   }
 
+  /**
+   * Appends an image filename to the project's images array.
+   */
+  public async addImage(
+    projectId: string,
+    imageFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const images = [...(project.images ?? []), imageFileName];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { images },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
   private mapCreateDtoToDocument(
     dto: CreateProjectDto,
   ): Partial<ProjectDocument> {
