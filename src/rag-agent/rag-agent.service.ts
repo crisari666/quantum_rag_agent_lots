@@ -1,45 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { WeaviateService } from './weaviate.service';
-
-interface RagSearchParams {
-  readonly question: string;
-  readonly projectId?: string;
-  readonly limit?: number;
-}
-
-export interface RagSearchResult {
-  readonly text: string;
-  readonly projectId: string;
-  readonly docType: string;
-  readonly source: string;
-  readonly score: number;
-}
-
-interface WeaviateWhereFilter {
-  readonly path: string[];
-  readonly operator: 'Equal';
-  readonly valueString: string;
-}
-
-interface WeaviateAdditional {
-  readonly distance?: number;
-}
-
-interface WeaviateDocument {
-  readonly text?: string;
-  readonly projectId?: string;
-  readonly docType?: string;
-  readonly source?: string;
-  readonly _additional?: WeaviateAdditional;
-}
-
-interface WeaviateGraphqlResponse {
-  readonly data?: {
-    readonly Get?: {
-      readonly [key: string]: WeaviateDocument[];
-    };
-  };
-}
+import {
+  RagSearchParams,
+  RagSearchResult,
+  WeaviateDocument,
+  WeaviateGraphqlResponse,
+  WeaviateWhereFilter,
+} from './rag-agent.types';
 
 /**
  * Service that encapsulates the RAG agent workflow using Weaviate as vector store.
