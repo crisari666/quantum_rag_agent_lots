@@ -33,6 +33,7 @@ The project is the API of a RAG Agent for a company of sell lots parcelization
 - Use UPPERCASE for environment variables.
   - Avoid magic numbers and define constants.
 - Start each function with a verb.
+- Create type file for eacth type object or interfaces
 - Use verbs for boolean variables. Example: isLoading, hasError, canDelete, etc.
 - Use complete words instead of abbreviations and correct spelling.
   - Except for standard abbreviations like API, URL, etc.
@@ -122,6 +123,7 @@ The project is the API of a RAG Agent for a company of sell lots parcelization
 - A shared module for services shared between modules.
   - Utilities
   - Shared business logic
+- - Alwayy integrate swagger to each endpoint
 
 ### Testing
 

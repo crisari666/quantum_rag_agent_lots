@@ -1,0 +1,39 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type ProjectDocument = Project & Document;
+
+@Schema({ timestamps: true, collection: 'projects' })
+export class Project {
+  @Prop({ required: true, trim: true })
+  title: string;
+
+  @Prop({ required: true, trim: true })
+  location: string;
+
+  @Prop({ required: true })
+  lat: number;
+
+  @Prop({ required: true })
+  lng: number;
+
+  @Prop({ required: true })
+  priceSell: number;
+
+  @Prop({ default: false })
+  deleted: boolean;
+
+  @Prop({ required: true })
+  commissionPercentage: number;
+
+  @Prop({ required: true })
+  commissionValue: number;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Amenity' }], default: [] })
+  amenities: Types.ObjectId[];
+
+  @Prop({ type: [String], default: [] })
+  images: string[];
+}
+
+export const ProjectSchema = SchemaFactory.createForClass(Project);

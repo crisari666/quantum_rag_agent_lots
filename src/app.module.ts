@@ -4,6 +4,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RagAgentModule } from './rag-agent/rag-agent.module';
+import { AmenitiesModule } from './amenities/amenities.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { RagAgentModule } from './rag-agent/rag-agent.module';
       },
     }),
     RagAgentModule,
+    AmenitiesModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
