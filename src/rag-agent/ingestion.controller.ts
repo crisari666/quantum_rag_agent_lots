@@ -16,11 +16,11 @@ import { IngestionService } from './ingestion.service';
 import { IngestDocumentDto } from './dto/ingest-document.dto';
 
 @ApiTags('RAG Ingestion')
-@Controller('rag/ingestion')
+@Controller('rag')
 export class IngestionController {
   public constructor(private readonly ingestionService: IngestionService) {}
 
-  @Post()
+  @Post('ingestion')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: 'Ingest a document into the RAG vector store' })
   @ApiBody({ type: IngestDocumentDto })

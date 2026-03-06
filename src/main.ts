@@ -11,6 +11,7 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
+  app.setGlobalPrefix('rest');
   const defaultPort = 3000;
   const environmentPort = process.env.PORT_APP;
   const port = environmentPort ? parseInt(environmentPort, 10) : defaultPort;

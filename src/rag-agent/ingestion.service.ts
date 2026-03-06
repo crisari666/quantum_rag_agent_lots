@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { WeaviateStore } from '@langchain/weaviate';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import type { WeaviateClient as HttpWeaviateClient } from 'weaviate-client';
 import { WeaviateService } from './weaviate.service';
 import { IngestionParams, IngestionResult } from './ingestion.types';
 
@@ -24,10 +23,9 @@ export class IngestionService {
       openAIApiKey: apiKey,
     });
     await WeaviateStore.fromDocuments(documents, embeddings, {
-      client: this.weaviateService.getClient() as unknown as HttpWeaviateClient,
+      client: this.weaviateService.client,
       indexName: this.weaviateService.indexName,
       textKey: 'text',
-      metadataKeys: ['projectId', 'docType', 'source'],
     });
     return {
       message: 'Document vectorized successfully',

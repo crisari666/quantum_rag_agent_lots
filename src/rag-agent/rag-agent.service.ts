@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import type { Properties } from 'weaviate-client';
 import { WeaviateService } from './weaviate.service';
-import {
-  RagSearchParams,
-  RagSearchResult,
-  WeaviateDocument,
-  WeaviateGraphqlResponse,
-  WeaviateWhereFilter,
-} from './rag-agent.types';
+import { RagSearchParams, RagSearchResult } from './rag-agent.types';
+
+type ProjectDocumentProperties = Properties & {
+  readonly text?: string;
+  readonly projectId?: string;
+  readonly docType?: string;
+  readonly source?: string;
+};
 
 /**
  * Service that encapsulates the RAG agent workflow using Weaviate as vector store.
@@ -19,56 +21,33 @@ export class RagAgentService {
     params: RagSearchParams,
   ): Promise<RagSearchResult[]> {
     const limit = params.limit ?? 5;
-    const client = this.weaviateService.getClient();
-    const nearText = { concepts: [params.question] };
-    const whereFilter = this.buildWhereFilter(params.projectId);
-    const query = client.graphql
-      .get()
-      .withClassName(this.weaviateService.indexName)
-      .withFields(
-        'text projectId docType source _additional { distance }',
-      )
-      .withNearText(nearText)
-      .withLimit(limit);
-    if (whereFilter) {
-      query.withWhere(whereFilter);
-    }
-    const rawResponse = (await query.do()) as WeaviateGraphqlResponse;
-    const documents = this.extractDocuments(rawResponse);
-    return documents.map((document) => this.mapToResult(document));
+    const client = this.weaviateService.client;
+    const collection = client.collections.get<ProjectDocumentProperties>(
+      this.weaviateService.indexName,
+    );
+    const filters = params.projectId
+      ? collection.filter.byProperty('projectId').equal(params.projectId)
+      : undefined;
+    const result = await collection.query.nearText(params.question, {
+      limit,
+      filters,
+      returnMetadata: ['distance'],
+      returnProperties: ['text', 'projectId', 'docType', 'source'],
+    });
+    return (result.objects ?? []).map((obj) => this.mapToResult(obj));
   }
 
-  private buildWhereFilter(
-    projectId?: string,
-  ): WeaviateWhereFilter | undefined {
-    if (!projectId) {
-      return undefined;
-    }
+  private mapToResult(obj: {
+    readonly properties?: ProjectDocumentProperties;
+    readonly metadata?: { readonly distance?: number };
+  }): RagSearchResult {
+    const props = obj.properties ?? {};
+    const score = obj.metadata?.distance ?? 0;
     return {
-      path: ['projectId'],
-      operator: 'Equal',
-      valueString: projectId,
-    };
-  }
-
-  private extractDocuments(response: WeaviateGraphqlResponse): WeaviateDocument[] {
-    const data = response.data;
-    if (!data || !data.Get) {
-      return [];
-    }
-    const classKey = this.weaviateService.indexName;
-    const documents = data.Get[classKey] ?? [];
-    return documents;
-  }
-
-  private mapToResult(document: WeaviateDocument): RagSearchResult {
-    const additional = document._additional;
-    const score = additional?.distance ?? 0;
-    return {
-      text: document.text ?? '',
-      projectId: document.projectId ?? '',
-      docType: document.docType ?? '',
-      source: document.source ?? '',
+      text: props.text ?? '',
+      projectId: props.projectId ?? '',
+      docType: props.docType ?? '',
+      source: props.source ?? '',
       score,
     };
   }
