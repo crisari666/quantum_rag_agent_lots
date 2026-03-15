@@ -3,8 +3,21 @@ import { ConfigService } from '@nestjs/config';
 import { WeaviateStore } from '@langchain/weaviate';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import type { Properties } from 'weaviate-client';
 import { WeaviateService } from './weaviate.service';
-import { IngestionParams, IngestionResult } from './ingestion.types';
+import {
+  IngestionParams,
+  IngestionResult,
+  VectorizedDocument,
+} from './ingestion.types';
+
+const DEFAULT_FETCH_LIMIT = 100;
+type ProjectDocumentProperties = Properties & {
+  readonly text?: string;
+  readonly projectId?: string;
+  readonly docType?: string;
+  readonly source?: string;
+};
 
 /**
  * Service responsible for processing raw documents and storing them in Weaviate.
@@ -15,6 +28,27 @@ export class IngestionService {
     private readonly weaviateService: WeaviateService,
     private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * Returns vectorized documents from the store, optionally filtered by projectId.
+   */
+  public async getVectorizedDocuments(
+    projectId?: string,
+  ): Promise<VectorizedDocument[]> {
+    const client = this.weaviateService.client;
+    const collection = client.collections.get<ProjectDocumentProperties>(
+      this.weaviateService.indexName,
+    );
+    const filters = projectId
+      ? collection.filter.byProperty('projectId').equal(projectId)
+      : undefined;
+    const result = await collection.query.fetchObjects({
+      limit: DEFAULT_FETCH_LIMIT,
+      filters,
+      returnProperties: ['text', 'projectId', 'docType', 'source'],
+    });
+    return (result.objects ?? []).map((obj) => this.mapToVectorizedDocument(obj));
+  }
 
   public async ingestDocument(params: IngestionParams): Promise<IngestionResult> {
     const documents = await this.splitDocument(params);
@@ -49,6 +83,20 @@ export class IngestionService {
       ],
     );
     return documents;
+  }
+
+  private mapToVectorizedDocument(obj: {
+    readonly uuid?: string;
+    readonly properties?: ProjectDocumentProperties;
+  }): VectorizedDocument {
+    const props = obj.properties ?? {};
+    return {
+      id: obj.uuid ?? '',
+      text: props.text ?? '',
+      projectId: props.projectId ?? '',
+      docType: props.docType ?? '',
+      source: props.source ?? '',
+    };
   }
 
   private getOpenAiApiKey(): string {

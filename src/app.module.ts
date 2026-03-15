@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { RagAgentModule } from './rag-agent/rag-agent.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { ProjectsModule } from './projects/projects.module';
+import { AgentChatModule } from './agent-chat/agent-chat.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ProjectsModule } from './projects/projects.module';
     RagAgentModule,
     AmenitiesModule,
     ProjectsModule,
+    AgentChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

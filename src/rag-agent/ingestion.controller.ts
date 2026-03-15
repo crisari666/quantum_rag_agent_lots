@@ -3,12 +3,14 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBody,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -19,6 +21,21 @@ import { IngestDocumentDto } from './dto/ingest-document.dto';
 @Controller('rag')
 export class IngestionController {
   public constructor(private readonly ingestionService: IngestionService) {}
+
+  @Get('ingestion/documents')
+  @ApiOperation({ summary: 'Get vectorized documents from the RAG store' })
+  @ApiQuery({
+    name: 'projectId',
+    required: false,
+    description: 'Filter documents by project ID (MongoDB ObjectId)',
+  })
+  @ApiResponse({ status: 200, description: 'List of vectorized documents.' })
+  @ApiResponse({ status: 500, description: 'Weaviate or query error.' })
+  public async getVectorizedDocuments(
+    @Query('projectId') projectId?: string,
+  ) {
+    return this.ingestionService.getVectorizedDocuments(projectId);
+  }
 
   @Post('ingestion')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

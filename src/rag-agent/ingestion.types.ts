@@ -10,3 +10,11 @@ export interface IngestionResult {
   readonly chunks: number;
 }
 
+export interface VectorizedDocument {
+  readonly id: string;
+  readonly text: string;
+  readonly projectId: string;
+  readonly docType: string;
+  readonly source: string;
+}
+
