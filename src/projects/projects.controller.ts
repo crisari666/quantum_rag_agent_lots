@@ -135,6 +135,27 @@ export class ProjectsController {
     };
   }
 
+  @Delete(':id/images/:imageName')
+  @ApiOperation({ summary: 'Remove an image from a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({
+    name: 'imageName',
+    description: 'Image filename (e.g. projectId_timestamp.webp)',
+  })
+  @ApiResponse({ status: 200, description: 'Image removed; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project or image not found.' })
+  public async removeProjectImage(
+    @Param('id') projectId: string,
+    @Param('imageName') imageName: string,
+  ) {
+    const project = await this.projectsService.removeImage(projectId, imageName);
+    return {
+      message: 'Image removed successfully',
+      imageName,
+      project,
+    };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get project by ID' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })

@@ -11,7 +11,9 @@ import {
 import { Type } from 'class-transformer';
 
 const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_LOCATION_LENGTH = 500;
+const MAX_CITY_STATE_COUNTRY_LENGTH = 200;
 
 export class UpdateProjectDto {
   @ApiPropertyOptional({ example: 'Lote Norte', maxLength: MAX_TITLE_LENGTH })
@@ -21,6 +23,15 @@ export class UpdateProjectDto {
   title?: string;
 
   @ApiPropertyOptional({
+    example: 'Residential lots with infrastructure.',
+    maxLength: MAX_DESCRIPTION_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_DESCRIPTION_LENGTH)
+  description?: string;
+
+  @ApiPropertyOptional({
     example: 'Ciudad de México',
     maxLength: MAX_LOCATION_LENGTH,
   })
@@ -28,6 +39,24 @@ export class UpdateProjectDto {
   @IsString()
   @MaxLength(MAX_LOCATION_LENGTH)
   location?: string;
+
+  @ApiPropertyOptional({ example: 'Ciudad de México', maxLength: MAX_CITY_STATE_COUNTRY_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CITY_STATE_COUNTRY_LENGTH)
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'CDMX', maxLength: MAX_CITY_STATE_COUNTRY_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CITY_STATE_COUNTRY_LENGTH)
+  state?: string;
+
+  @ApiPropertyOptional({ example: 'México', maxLength: MAX_CITY_STATE_COUNTRY_LENGTH })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CITY_STATE_COUNTRY_LENGTH)
+  country?: string;
 
   @ApiPropertyOptional({ example: 19.4326 })
   @IsOptional()

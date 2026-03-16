@@ -36,6 +36,23 @@ export class ProjectImageStorageService {
     return fileName;
   }
 
+  /**
+   * Deletes an image file from disk by filename.
+   * Ignores ENOENT (file already missing).
+   */
+  public async deleteImage(fileName: string): Promise<void> {
+    const uploadDir = this.getUploadDir();
+    const filePath = join(uploadDir, fileName);
+    try {
+      await fs.unlink(filePath);
+    } catch (error: unknown) {
+      const err = error as NodeJS.ErrnoException;
+      if (err?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
   private getUploadDir(): string {
     return (
       this.configService.get<string>(UPLOAD_DIR_ENV_KEY) ??

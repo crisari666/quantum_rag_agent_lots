@@ -8,8 +8,20 @@ export class Project {
   @Prop({ required: true, trim: true })
   title: string;
 
+  @Prop({ trim: true, default: '' })
+  description: string;
+
   @Prop({ required: true, trim: true })
   location: string;
+
+  @Prop({ trim: true, default: '' })
+  city: string;
+
+  @Prop({ trim: true, default: '' })
+  state: string;
+
+  @Prop({ trim: true, default: '' })
+  country: string;
 
   @Prop({ required: true })
   lat: number;
