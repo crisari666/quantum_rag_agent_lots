@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
   UsePipes,
@@ -18,6 +19,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -30,6 +32,7 @@ import {
   ALLOWED_IMAGE_MIME_TYPES,
   MAX_IMAGE_FILE_SIZE_BYTES,
 } from './constants/image-upload.constants';
+import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -50,6 +53,30 @@ export class ProjectsController {
     return this.projectsService.create(createProjectDto);
   }
 
+  @Patch(':projectId/enabled/:enable')
+  @ApiOperation({ summary: 'Enable or disable a project' })
+  @ApiParam({ name: 'projectId', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({
+    name: 'enable',
+    description: 'true to enable, false to disable',
+    enum: ['true', 'false'],
+  })
+  @ApiResponse({ status: 200, description: 'Project updated with new enabled flag.' })
+  @ApiResponse({ status: 400, description: 'Invalid enable value.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public setProjectEnabled(
+    @Param('projectId') projectId: string,
+    @Param('enable') enable: string,
+  ) {
+    const normalized = enable?.trim().toLowerCase();
+    if (normalized !== 'true' && normalized !== 'false') {
+      throw new BadRequestException(
+        'Path parameter "enable" must be "true" or "false".',
+      );
+    }
+    return this.projectsService.setEnabled(projectId, normalized === 'true');
+  }
+
   @Patch(':id')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: 'Update a project by ID' })
@@ -66,10 +93,34 @@ export class ProjectsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all non-deleted projects' })
+  @ApiOperation({
+    summary:
+      'List non-deleted projects (default: enabled only); optional enable filter',
+  })
+  @ApiQuery({
+    name: 'enable',
+    required: false,
+    enum: ['true', 'false', 'all'],
+    description:
+      'Omitted: same as true (enabled only). true: enabled only; false: disabled only; all: every non-deleted project',
+  })
   @ApiResponse({ status: 200, description: 'List of projects.' })
-  public list() {
-    return this.projectsService.list();
+  @ApiResponse({ status: 400, description: 'Invalid enable query value.' })
+  public list(@Query('enable') enable?: string) {
+    if (enable === undefined || enable.trim() === '') {
+      return this.projectsService.list('true');
+    }
+    const normalized = enable.trim().toLowerCase();
+    if (
+      normalized !== 'true' &&
+      normalized !== 'false' &&
+      normalized !== 'all'
+    ) {
+      throw new BadRequestException(
+        'Query "enable" must be one of: true, false, all (or omit for enabled only).',
+      );
+    }
+    return this.projectsService.list(normalized as ListProjectsEnableFilter);
   }
 
   @Get('admin/test')

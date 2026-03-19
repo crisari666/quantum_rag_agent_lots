@@ -4,7 +4,8 @@
 |--------|------|---------|-----------|
 | POST | `/projects` | Body: `CreateProjectDto` — title, description?, location, city?, state?, country?, lat, lng, priceSell, commissionPercentage, commissionValue, amenities?, images? | 201, 400 |
 | PATCH | `/projects/:id` | Param: `id` (ObjectId). Body: `UpdateProjectDto` — same fields, all optional (incl. description, city, state, country) | 200, 400, 404 |
-| GET | `/projects` | — | 200 (array) |
+| GET | `/projects` | Optional `?enable=`: omit → **enabled only**; `true` / `false` / `all` | 200, 400 |
+| PATCH | `/projects/:projectId/enabled/:enable` | Path: `projectId`, `enable` = `true` \| `false` | 200, 400, 404 |
 | GET | `/projects/:id` | Param: `id` (ObjectId) | 200, 404 |
 | DELETE | `/projects/:id` | Param: `id` (ObjectId). Soft delete | 200, 404 |
 | POST | `/projects/:id/images` | Param: `id`. Body: `multipart/form-data`, field `file` (image: jpeg/png/webp, max 5MB). Stored as `projectId_timestamp.webp`, appended to project.images | 201, 400, 404 |
@@ -31,13 +32,16 @@
   "commissionValue": 75000,
   "amenities": [],
   "images": [],
+  "enabled": false,
   "deleted": false,
   "createdAt": "2025-03-03T12:00:00.000Z",
   "updatedAt": "2025-03-03T12:00:00.000Z"
 }
 ```
 
-**GET /projects** (200): array of the same shape; each item may have `amenities` populated as `[{ "_id": "...", "title": "Parking" }]`.
+**GET /projects** (200): array (includes `enabled`). **Default** (no query): enabled projects only. **400** if `enable` is present but not `true` \| `false` \| `all`. Use `?enable=all` for admin; `?enable=false` for drafts.
+
+**PATCH /projects/:projectId/enabled/:enable** (200): updated project with `enabled` set. **400** if `:enable` is not `true` or `false`. **404** if project missing or deleted.
 
 **GET /projects/:id** (200): single object like above, with `amenities` populated.
 

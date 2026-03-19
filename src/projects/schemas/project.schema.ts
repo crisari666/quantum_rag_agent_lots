@@ -14,6 +14,9 @@ export class Project {
   @Prop({ required: true, trim: true })
   location: string;
 
+  @Prop({ default: false })
+  enabled: boolean;
+
   @Prop({ trim: true, default: '' })
   city: string;
 

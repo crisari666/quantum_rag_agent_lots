@@ -5,6 +5,7 @@ import { Project, ProjectDocument } from './schemas/project.schema';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
+import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 
 /**
  * Service responsible for project persistence and business logic.
@@ -18,7 +19,7 @@ export class ProjectsService {
 
   public async create(createProjectDto: CreateProjectDto): Promise<ProjectDocument> {
     const payload = this.mapCreateDtoToDocument(createProjectDto);
-    const project = new this.projectModel(payload);
+    const project = new this.projectModel({...payload, enabled: false});
     return project.save();
   }
 
@@ -37,12 +38,41 @@ export class ProjectsService {
     return project;
   }
 
-  public async list(): Promise<ProjectDocument[]> {
+  public async list(
+    enableFilter: ListProjectsEnableFilter,
+  ): Promise<ProjectDocument[]> {
+    const filter: Record<string, unknown> = { deleted: false };
+    if (enableFilter === 'true') {
+      filter.enabled = true;
+    } else if (enableFilter === 'false') {
+      filter.enabled = false;
+    }
     return this.projectModel
-      .find({ deleted: false })
+      .find(filter)
       .populate('amenities', 'title')
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  /**
+   * Sets whether a non-deleted project is enabled (visible for consumers when enabled).
+   */
+  public async setEnabled(
+    projectId: string,
+    enabled: boolean,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOneAndUpdate(
+        { _id: projectId, deleted: false },
+        { enabled },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return project;
   }
 
   public async getById(id: string): Promise<ProjectDocument> {

@@ -51,7 +51,7 @@ export function createSearchProjectsTool(
 ): StructuredToolInterface {
   return tool(
     async () => {
-      const projects = await projectsService.list();
+      const projects = await projectsService.list('true');
       if (projects.length === 0) {
         return 'No projects found.';
       }
@@ -64,7 +64,7 @@ export function createSearchProjectsTool(
     },
     {
       name: 'list_projects',
-      description: `List all available projects with their id, title, location and sell price.
+      description: `List enabled projects only (id, title, location, sell price).
 Use this first when the user asks about projects in general, features, or to get project IDs for filtering document search.`,
       schema: z.object({}),
     },
