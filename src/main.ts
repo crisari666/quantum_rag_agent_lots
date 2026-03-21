@@ -18,7 +18,7 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-  app.setGlobalPrefix('rest');
+  app.setGlobalPrefix('rag');
 
   app.enableCors({
     origin: '*',
