@@ -2,9 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { DEFAULT_PROJECT_IMAGES_UPLOAD_DIR } from '../constants/image-upload.constants';
-
-const UPLOAD_DIR_ENV_KEY = 'UPLOAD_DIR';
+import { resolveProjectImagesUploadDir } from '../../config/upload-bucket.resolver';
 
 /**
  * Service responsible for persisting project images to disk.
@@ -13,19 +11,31 @@ const UPLOAD_DIR_ENV_KEY = 'UPLOAD_DIR';
 export class ProjectImageStorageService {
   public constructor(private readonly configService: ConfigService) {}
 
-  /**
-   * Builds the stored image filename: projectId_timestamp.format
-   */
-  public buildImageFileName(projectId: string, format: string): string {
+  public buildDocumentFileName(
+    fileType: string,
+    projectName: string,
+    extension: string,
+  ): string {
+    const normalizedProjectName = this.normalizeProjectName(projectName);
+    return `${fileType}_${normalizedProjectName}.${extension}`;
+  }
+
+  public buildImageFileName(
+    projectName: string,
+    format: string,
+    index = 0,
+  ): string {
+    const normalizedProjectName = this.normalizeProjectName(projectName);
     const timestamp = Date.now();
-    return `${projectId}_${timestamp}.${format}`;
+    const suffix = index > 0 ? `_${index}` : '';
+    return `image_${normalizedProjectName}_${timestamp}${suffix}.${format}`;
   }
 
   /**
    * Ensures the upload directory exists and writes the buffer to a file.
    * Returns the filename (not full path) for storing in the project.
    */
-  public async saveImage(
+  public async saveFile(
     buffer: Buffer,
     fileName: string,
   ): Promise<string> {
@@ -40,7 +50,7 @@ export class ProjectImageStorageService {
    * Deletes an image file from disk by filename.
    * Ignores ENOENT (file already missing).
    */
-  public async deleteImage(fileName: string): Promise<void> {
+  public async deleteFile(fileName: string): Promise<void> {
     const uploadDir = this.getUploadDir();
     const filePath = join(uploadDir, fileName);
     try {
@@ -54,9 +64,15 @@ export class ProjectImageStorageService {
   }
 
   private getUploadDir(): string {
-    return (
-      this.configService.get<string>(UPLOAD_DIR_ENV_KEY) ??
-      DEFAULT_PROJECT_IMAGES_UPLOAD_DIR
-    );
+    return resolveProjectImagesUploadDir(this.configService);
+  }
+
+  private normalizeProjectName(projectName: string): string {
+    const normalized = projectName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return normalized || 'project';
   }
 }

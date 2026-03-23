@@ -6,6 +6,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
+import { ProjectDocumentField } from './types/project-document-field.type';
 
 /**
  * Service responsible for project persistence and business logic.
@@ -127,6 +128,27 @@ export class ProjectsService {
     return updated;
   }
 
+  public async addImages(
+    projectId: string,
+    imageFileNames: string[],
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const images = [...(project.images ?? []), ...imageFileNames];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { images }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
   /**
    * Removes an image from the project's images array and deletes the file from storage.
    */
@@ -148,7 +170,7 @@ export class ProjectsService {
       );
     }
     const newImages = images.filter((name) => name !== imageName);
-    await this.projectImageStorageService.deleteImage(imageName);
+    await this.projectImageStorageService.deleteFile(imageName);
     const updated = await this.projectModel
       .findByIdAndUpdate(
         projectId,
@@ -161,6 +183,28 @@ export class ProjectsService {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
     return updated;
+  }
+
+  public async setDocumentFile(
+    projectId: string,
+    field: ProjectDocumentField,
+    fileName: string,
+  ): Promise<{ project: ProjectDocument; previousFileName: string }> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const previousFileName = (project[field] ?? '') as string;
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { [field]: fileName }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return { project: updated, previousFileName };
   }
 
   private mapCreateDtoToDocument(
@@ -183,6 +227,9 @@ export class ProjectsService {
       commissionValue: dto.commissionValue,
       amenities,
       images: dto.images ?? [],
+      reelVideo: '',
+      plane: '',
+      brochure: '',
       deleted: false,
     };
   }

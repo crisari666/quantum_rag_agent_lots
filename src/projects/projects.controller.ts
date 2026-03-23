@@ -9,11 +9,12 @@ import {
   Post,
   Query,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
   ApiConsumes,
@@ -28,9 +29,15 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ImageCompressionService } from './services/image-compression.service';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
+import { ProjectDocumentUploadService } from './services/project-document-upload.service';
 import {
+  ALLOWED_BROCHURE_MIME_TYPES,
   ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_PLANE_MIME_TYPES,
+  ALLOWED_REEL_VIDEO_MIME_TYPES,
+  MAX_DOCUMENT_FILE_SIZE_BYTES,
   MAX_IMAGE_FILE_SIZE_BYTES,
+  MAX_REEL_VIDEO_FILE_SIZE_BYTES,
 } from './constants/image-upload.constants';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 
@@ -41,6 +48,7 @@ export class ProjectsController {
     private readonly projectsService: ProjectsService,
     private readonly imageCompressionService: ImageCompressionService,
     private readonly projectImageStorageService: ProjectImageStorageService,
+    private readonly projectDocumentUploadService: ProjectDocumentUploadService,
   ) {}
 
   @Post()
@@ -135,19 +143,9 @@ export class ProjectsController {
     FileInterceptor('file', {
       limits: { fileSize: MAX_IMAGE_FILE_SIZE_BYTES },
       fileFilter: (_req, file, callback) => {
-        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(
-          file.mimetype,
-        );
-        if (isAllowed) {
-          callback(null, true);
-        } else {
-          callback(
-            new BadRequestException(
-              'Invalid file type. Allowed: jpeg, jpg, png, webp',
-            ),
-            false,
-          );
-        }
+        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid file type. Allowed: jpeg, jpg, png, webp'), false);
       },
     }),
   )
@@ -173,17 +171,183 @@ export class ProjectsController {
     if (!file?.buffer) {
       throw new BadRequestException('No file uploaded');
     }
-    const { buffer, format } =
-      await this.imageCompressionService.compress(file.buffer);
-    const fileName =
-      this.projectImageStorageService.buildImageFileName(projectId, format);
-    await this.projectImageStorageService.saveImage(buffer, fileName);
-    const project = await this.projectsService.addImage(projectId, fileName);
+    const project = await this.projectsService.getById(projectId);
+    const { buffer, format } = await this.imageCompressionService.compress(file.buffer);
+    const fileName = this.projectImageStorageService.buildImageFileName(project.title, format);
+    await this.projectImageStorageService.saveFile(buffer, fileName);
+    const updatedProject = await this.projectsService.addImage(projectId, fileName);
     return {
       message: 'Image uploaded successfully',
       imageName: fileName,
-      project,
+      project: updatedProject,
     };
+  }
+
+  @Post(':id/images/multiple')
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid file type. Allowed: jpeg, jpg, png, webp'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload multiple images for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Image files',
+        },
+      },
+      required: ['files'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Images uploaded and added to project.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectImages(
+    @Param('id') projectId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) {
+      throw new BadRequestException('No files uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const imageNames: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const { buffer, format } = await this.imageCompressionService.compress(file.buffer);
+      const imageName = this.projectImageStorageService.buildImageFileName(project.title, format, index);
+      await this.projectImageStorageService.saveFile(buffer, imageName);
+      imageNames.push(imageName);
+    }
+    const updatedProject = await this.projectsService.addImages(projectId, imageNames);
+    return {
+      message: 'Images uploaded successfully',
+      imageNames,
+      project: updatedProject,
+    };
+  }
+
+  @Post(':id/reel-video')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_REEL_VIDEO_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_REEL_VIDEO_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid reel video type. Allowed: mp4, webm, mov, avi'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload reel video for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Reel video file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Reel video uploaded and assigned.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public uploadProjectReelVideo(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.projectDocumentUploadService.uploadDocument({
+      projectId,
+      file,
+      field: 'reelVideo',
+      fileType: 'reel_video',
+    });
+  }
+
+  @Post(':id/plane')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_DOCUMENT_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_PLANE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid plane type. Allowed: pdf, jpeg, jpg, png'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload project plane file' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Project plane file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Project plane uploaded and assigned.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public uploadProjectPlane(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.projectDocumentUploadService.uploadDocument({
+      projectId,
+      file,
+      field: 'plane',
+      fileType: 'plane',
+    });
+  }
+
+  @Post(':id/brochure')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_DOCUMENT_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_BROCHURE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid brochure type. Allowed: pdf'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload project brochure file' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Project brochure file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Project brochure uploaded and assigned.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public uploadProjectBrochure(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.projectDocumentUploadService.uploadDocument({
+      projectId,
+      file,
+      field: 'brochure',
+      fileType: 'brochure',
+    });
   }
 
   @Delete(':id/images/:imageName')
@@ -224,4 +388,5 @@ export class ProjectsController {
   public remove(@Param('id') id: string) {
     return this.projectsService.remove(id);
   }
+
 }

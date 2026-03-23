@@ -1,15 +1,17 @@
+import { mkdirSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { join } from 'path';
+import { UPLOADS_STATIC_URL_PREFIX } from './config/upload-bucket.constants';
+import { resolveUploadsBucketAbsolutePath } from './config/upload-bucket.resolver';
 import { AppModule } from './app.module';
 
-const UPLOADS_STATIC_PATH = 'uploads';
-
 async function bootstrap() {
+  const uploadsBucketAbsolutePath = resolveUploadsBucketAbsolutePath();
+  mkdirSync(uploadsBucketAbsolutePath, { recursive: true });
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.useStaticAssets(join(process.cwd(), UPLOADS_STATIC_PATH), {
-    prefix: `/${UPLOADS_STATIC_PATH}/`,
+  app.useStaticAssets(uploadsBucketAbsolutePath, {
+    prefix: UPLOADS_STATIC_URL_PREFIX,
   });
   const config = new DocumentBuilder()
     .setTitle('Omega RAG API')

@@ -49,6 +49,15 @@ export class Project {
 
   @Prop({ type: [String], default: [] })
   images: string[];
+  @Prop({ trim: true, default: '' })
+  reelVideo: string;
+
+  @Prop({ trim: true, default: '' })
+  plane: string;
+
+  @Prop({ trim: true, default: '' })
+  brochure: string;
+
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

@@ -5,6 +5,7 @@ import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { ImageCompressionService } from './services/image-compression.service';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
+import { ProjectDocumentUploadService } from './services/project-document-upload.service';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ProjectImageStorageService } from './services/project-image-storage.ser
     ProjectsService,
     ImageCompressionService,
     ProjectImageStorageService,
+    ProjectDocumentUploadService,
   ],
   exports: [ProjectsService],
 })
