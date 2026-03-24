@@ -17,6 +17,8 @@ export interface IngestionSourceParams {
 export interface IngestionResult {
   readonly message: string;
   readonly chunks: number;
+  /** Chunks deleted in Weaviate before insert (same projectId + source + docType). */
+  readonly previousChunksRemoved: number;
 }
 
 export interface VectorizedDocument {

@@ -8,9 +8,11 @@ const DEFAULT_DOCUMENT_SEARCH_LIMIT = 5;
 
 /**
  * Creates the tool to search project documents in Weaviate (RAG).
+ * @param collectDocumentSources - Optional hook with unique non-empty source strings (URL or stored path) after each search.
  */
 export function createSearchProjectDocumentsTool(
   ragAgentService: RagAgentService,
+  collectDocumentSources?: (sources: readonly string[]) => void,
 ): StructuredToolInterface {
   return tool(
     async (input) => {
@@ -21,6 +23,16 @@ export function createSearchProjectDocumentsTool(
       });
       if (results.length === 0) {
         return 'No relevant documents found.';
+      }
+      if (collectDocumentSources) {
+        const uniqueSources = [
+          ...new Set(
+            results
+              .map((r) => r.source.trim())
+              .filter((s) => s.length > 0),
+          ),
+        ];
+        collectDocumentSources(uniqueSources);
       }
       return results
         .map(

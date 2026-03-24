@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { WeaviateStore } from '@langchain/weaviate';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import type { Properties } from 'weaviate-client';
+import { Filters, type Properties } from 'weaviate-client';
 import { WeaviateService } from './weaviate.service';
 import {
   IngestionParams,
@@ -11,7 +11,10 @@ import {
   IngestionResult,
   VectorizedDocument,
 } from './ingestion.types';
-import { GLOBAL_PROJECT_ID } from './constants/ingestion.constants';
+import {
+  GLOBAL_PROJECT_ID,
+  INGESTION_FALLBACK_SOURCE_RAW_TEXT,
+} from './constants/ingestion.constants';
 
 const DEFAULT_FETCH_LIMIT = 100;
 const SUPPORTED_TEXT_MIME_PREFIX = 'text/';
@@ -60,6 +63,7 @@ export class IngestionService {
   }
 
   public async ingestDocument(params: IngestionParams): Promise<IngestionResult> {
+    const previousChunksRemoved = await this.replaceExistingDocumentChunks(params);
     const documents = await this.splitDocument(params);
     const apiKey = this.getOpenAiApiKey();
     const embeddings = new OpenAIEmbeddings({
@@ -73,6 +77,7 @@ export class IngestionService {
     return {
       message: 'Document vectorized successfully',
       chunks: documents.length,
+      previousChunksRemoved,
     };
   }
 
@@ -109,6 +114,29 @@ export class IngestionService {
       docType: params.docType,
       source,
     });
+  }
+
+  /**
+   * Removes existing chunks for the same logical document so re-ingestion does not duplicate vectors.
+   * Identity: `projectId` + `source` + `docType`. Skipped when `source` is the generic raw-text fallback.
+   */
+  private async replaceExistingDocumentChunks(
+    params: IngestionParams,
+  ): Promise<number> {
+    if (params.source === INGESTION_FALLBACK_SOURCE_RAW_TEXT) {
+      return 0;
+    }
+    const client = this.weaviateService.client;
+    const collection = client.collections.get<ProjectDocumentProperties>(
+      this.weaviateService.indexName,
+    );
+    const where = Filters.and(
+      collection.filter.byProperty('projectId').equal(params.projectId),
+      collection.filter.byProperty('source').equal(params.source),
+      collection.filter.byProperty('docType').equal(params.docType),
+    );
+    const deleteResult = await collection.data.deleteMany(where);
+    return deleteResult.successful;
   }
 
   private async splitDocument(params: IngestionParams) {

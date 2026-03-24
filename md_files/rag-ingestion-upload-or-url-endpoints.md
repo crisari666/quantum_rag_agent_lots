@@ -15,6 +15,17 @@ Use exactly one content source in a request.
 - When you **upload a file**, the stored citation defaults to the **uploaded filename** unless you send `source` (e.g. a stable CDN URL you want vendors to open).
 - When you use **`externalUrl`** to fetch text, the citation defaults to that URL unless you set `source` to a different public link.
 
+## Re-ingestion (replace vs duplicate)
+
+Before inserting new chunks, the API **deletes existing Weaviate objects** that match the same logical document:
+
+- **Match key:** `projectId` + `source` + `docType` (all must match exactly).
+- **Effect:** Re-uploading the same file name (or the same explicit `source`) replaces prior vectors instead of stacking duplicates.
+
+**Exception:** If `source` is the default placeholder **`raw-text`** (body sent as `rawText` without a custom `source`), **no delete** runs—each call **appends** new chunks. To get replace behavior with a JSON body, set a stable, unique `source` (e.g. document title or public URL).
+
+The JSON response includes **`previousChunksRemoved`**: number of chunks deleted (often `0` on first ingest or when the exception above applies).
+
 ## Base Paths
 
 - API global prefix: `/rag`
@@ -83,19 +94,23 @@ Final paths:
 
 ## Response
 
-Successful ingestion:
-```json
-{
-  "message": "Document vectorized successfully",
-  "chunks": 8
-}
-```
-
-Global ingestion adds:
+Successful ingestion (project):
 ```json
 {
   "message": "Document vectorized successfully",
   "chunks": 8,
+  "previousChunksRemoved": 8
+}
+```
+
+`previousChunksRemoved` is `0` when nothing matched or when replace was skipped (`source` = `raw-text`).
+
+Global ingestion response adds `projectId`:
+```json
+{
+  "message": "Document vectorized successfully",
+  "chunks": 8,
+  "previousChunksRemoved": 0,
   "projectId": "GLOBAL"
 }
 ```

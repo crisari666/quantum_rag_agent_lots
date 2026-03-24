@@ -31,6 +31,12 @@ Use **exactly one** way to supply **text for embeddings** (chunking + vectors):
 
 For the same rules on the project-scoped endpoint, see `md_files/rag-ingestion-upload-or-url-endpoints.md`.
 
+## Re-ingestion (replace)
+
+Same as project ingestion: existing chunks with the same **`projectId` (`GLOBAL`) + `source` + `docType`** are **deleted** before new chunks are written. Use a stable `source` (e.g. official URL or filename) so updates replace the old index.
+
+If `source` resolves to **`raw-text`** (only possible when sending `rawText` without setting `source`), **no replace**—chunks are **appended**.
+
 ## Required fields
 
 - `docType` (string, required)
@@ -87,6 +93,7 @@ For the same rules on the project-scoped endpoint, see `md_files/rag-ingestion-u
 {
   "message": "Document vectorized successfully",
   "chunks": 12,
+  "previousChunksRemoved": 12,
   "projectId": "GLOBAL"
 }
 ```

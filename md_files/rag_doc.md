@@ -14,6 +14,7 @@ The agent needs to handle two types of queries:
 - **Global knowledge:** General documents are ingested with `projectId = "GLOBAL"` (string literal), not a separate vector index.
 - **Metadata:** `projectId`, `docType`, and `source` are stored with `skipVectorization: true` so filters stay exact; chunk text is what gets embedded.
 - **Citation field:** `source` is the **vendor-facing reference** (filename, title, or public URL) returned with answers. It is not the full document body. Embedding text may come from `rawText`, a **text file upload**, or content **fetched from `externalUrl`**.
+- **Re-ingestion:** Uploading or posting again with the same **`projectId` + `source` + `docType`** **replaces** prior chunks (they are deleted in Weaviate before insert). The generic default `source` **`raw-text`** (when `rawText` is sent without an explicit `source`) **does not** trigger replace—those calls **append**. See the ingestion markdown files for the `previousChunksRemoved` response field.
 - **Routing (implemented in this repo):** The chat agent uses tools (`list_projects`, `search_project_documents`). Document search behavior:
   - If **`projectIds`** are provided: query runs against each listed project **and** `GLOBAL`, then results are merged and ranked.
   - If **`projectIds`** are omitted: query runs against **`GLOBAL` only** (strict general-knowledge mode).

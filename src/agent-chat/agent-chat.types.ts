@@ -8,7 +8,9 @@ export interface ChatMessageInput {
 
 /**
  * Result of asking the agent a question.
+ * `sources` lists URLs or backend-relative paths from ingested document metadata when RAG was used; empty if only structured DB data was used.
  */
 export interface AgentChatResult {
   readonly output: string;
+  readonly sources: readonly string[];
 }

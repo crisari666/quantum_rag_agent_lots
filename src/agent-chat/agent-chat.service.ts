@@ -15,7 +15,7 @@ import {
   createSearchProjectDocumentsTool,
   createSearchProjectsTool,
 } from './tools/agent-tools.factory';
-import type { ChatMessageInput } from './agent-chat.types';
+import type { AgentChatResult, ChatMessageInput } from './agent-chat.types';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
 const OPENAI_API_KEY_ENV = 'OPENAI_API_KEY';
@@ -37,28 +37,34 @@ Rules:
  */
 @Injectable()
 export class AgentChatService {
-  private readonly tools: StructuredToolInterface[];
-
   public constructor(
     private readonly configService: ConfigService,
     private readonly ragAgentService: RagAgentService,
     private readonly projectsService: ProjectsService,
-  ) {
-    this.tools = [
-      createSearchProjectsTool(this.projectsService),
-      createSearchProjectDocumentsTool(this.ragAgentService),
-    ];
-  }
+  ) {}
 
   /**
-   * Sends a question to the agent and returns the final answer, using chat history when provided.
+   * Sends a question to the agent and returns the final answer and document sources from RAG when used.
    */
   public async askQuestion(
     question: string,
     chatHistory: ChatMessageInput[] = [],
-  ): Promise<string> {
+  ): Promise<AgentChatResult> {
+    const collectedSources = new Set<string>();
+    const collectDocumentSources = (sources: readonly string[]): void => {
+      for (const s of sources) {
+        collectedSources.add(s);
+      }
+    };
+    const tools: StructuredToolInterface[] = [
+      createSearchProjectsTool(this.projectsService),
+      createSearchProjectDocumentsTool(
+        this.ragAgentService,
+        collectDocumentSources,
+      ),
+    ];
     const llm = this.createLlm();
-    const modelWithTools = llm.bindTools(this.tools);
+    const modelWithTools = llm.bindTools(tools);
     const messages = this.buildMessages(question, chatHistory);
     let currentMessages: BaseMessage[] = [...messages];
     let iterations = 0;
@@ -73,10 +79,14 @@ export class AgentChatService {
           typeof response.content === 'string'
             ? response.content
             : String(response.content ?? '');
-        return content.trim() || 'No response generated.';
+        const output = content.trim() || 'No response generated.';
+        return {
+          output,
+          sources: this.sortSources(collectedSources),
+        };
       }
       currentMessages = [...currentMessages, response];
-      const toolResults = await this.runToolCalls(toolCalls);
+      const toolResults = await this.runToolCalls(toolCalls, tools);
       for (const { toolCallId, content } of toolResults) {
         currentMessages.push(
           new ToolMessage({
@@ -86,7 +96,15 @@ export class AgentChatService {
         );
       }
     }
-    return 'Maximum agent iterations reached. Please try a simpler question.';
+    return {
+      output:
+        'Maximum agent iterations reached. Please try a simpler question.',
+      sources: this.sortSources(collectedSources),
+    };
+  }
+
+  private sortSources(sources: Set<string>): string[] {
+    return [...sources].sort((left, right) => left.localeCompare(right));
   }
 
   private createLlm(): ChatOpenAI {
@@ -122,9 +140,10 @@ export class AgentChatService {
 
   private async runToolCalls(
     toolCalls: Array<{ id?: string; name: string; args: Record<string, unknown> }>,
+    tools: StructuredToolInterface[],
   ): Promise<Array<{ toolCallId: string; content: string }>> {
     const results: Array<{ toolCallId: string; content: string }> = [];
-    const toolMap = new Map(this.tools.map((t) => [t.name, t]));
+    const toolMap = new Map(tools.map((t) => [t.name, t]));
     for (const tc of toolCalls) {
       const toolCallId = tc.id ?? `call_${Date.now()}`;
       const tool = toolMap.get(tc.name);
