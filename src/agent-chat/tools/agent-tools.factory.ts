@@ -16,7 +16,7 @@ export function createSearchProjectDocumentsTool(
     async (input) => {
       const results = await ragAgentService.searchRelevantDocuments({
         question: input.question,
-        projectId: input.projectId,
+        projectIds: input.projectIds,
         limit: input.limit ?? DEFAULT_DOCUMENT_SEARCH_LIMIT,
       });
       if (results.length === 0) {
@@ -25,7 +25,7 @@ export function createSearchProjectDocumentsTool(
       return results
         .map(
           (r) =>
-            `[projectId: ${r.projectId}, source: ${r.source}]\n${r.text}`,
+            `[projectId: ${r.projectId}, source (vendor citation): ${r.source}]\n${r.text}`,
         )
         .join('\n\n---\n\n');
     },
@@ -33,10 +33,16 @@ export function createSearchProjectDocumentsTool(
       name: 'search_project_documents',
       description: `Search project documentation and unstructured content in the vector store.
 Use this for questions about contracts, credits, regulations, manuals, or qualitative descriptions.
-Optionally filter by projectId (MongoDB ObjectId) to restrict to one project.`,
+If projectIds are provided, search those projects plus GLOBAL knowledge.
+If projectIds are empty/omitted, search GLOBAL knowledge only.`,
       schema: z.object({
         question: z.string().describe('Natural language question to search for in documents'),
-        projectId: z.string().optional().describe('Optional project ID to filter results'),
+        projectIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Optional project IDs for scoped search. When provided, the tool also includes GLOBAL knowledge.',
+          ),
         limit: z.number().min(1).max(20).optional().describe('Max number of document chunks to return'),
       }),
     },

@@ -1,6 +1,7 @@
 export interface RagSearchParams {
   readonly question: string;
   readonly projectId?: string;
+  readonly projectIds?: string[];
   readonly limit?: number;
 }
 

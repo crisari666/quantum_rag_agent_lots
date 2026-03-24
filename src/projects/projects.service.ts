@@ -66,7 +66,7 @@ export class ProjectsService {
       .findOneAndUpdate(
         { _id: projectId, deleted: false },
         { enabled },
-        { new: true },
+        { returnDocument: 'after' },
       )
       .populate('amenities', 'title')
       .exec();
