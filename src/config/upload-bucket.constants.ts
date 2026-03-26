@@ -8,4 +8,4 @@ export const UPLOADS_BUCKET_PATH_ENV_KEY = 'UPLOADS_BUCKET_PATH' as const;
 export const DEFAULT_UPLOADS_BUCKET_RELATIVE_PATH = 'uploads' as const;
 
 /** URL prefix for static file serving (maps to the uploads bucket root). */
-export const UPLOADS_STATIC_URL_PREFIX = '/uploads/' as const;
+export const UPLOADS_STATIC_URL_PREFIX = '/rag/uploads/' as const;
