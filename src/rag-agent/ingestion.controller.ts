@@ -19,6 +19,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { MAX_UPLOAD_SIZE_BYTES } from '../config/upload-bucket.constants';
 import { IngestionService } from './ingestion.service';
 import { IngestDocumentDto } from './dto/ingest-document.dto';
 import { IngestGlobalDocumentDto } from './dto/ingest-global-document.dto';
@@ -45,7 +46,9 @@ export class IngestionController {
   }
 
   @Post('ingestion')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_BYTES } }),
+  )
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: 'Ingest a document into the RAG vector store' })
   @ApiConsumes('application/json', 'multipart/form-data')
@@ -97,7 +100,9 @@ export class IngestionController {
   }
 
   @Post('ingestion/global')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_BYTES } }),
+  )
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({
     summary:

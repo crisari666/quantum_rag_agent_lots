@@ -1,15 +1,23 @@
 import { mkdirSync } from 'fs';
+import { json, urlencoded } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { UPLOADS_STATIC_URL_PREFIX } from './config/upload-bucket.constants';
+import {
+  MAX_UPLOAD_SIZE_BYTES,
+  UPLOADS_STATIC_URL_PREFIX,
+} from './config/upload-bucket.constants';
 import { resolveUploadsBucketAbsolutePath } from './config/upload-bucket.resolver';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const uploadsBucketAbsolutePath = resolveUploadsBucketAbsolutePath();
   mkdirSync(uploadsBucketAbsolutePath, { recursive: true });
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+  app.use(json({ limit: MAX_UPLOAD_SIZE_BYTES }));
+  app.use(urlencoded({ extended: true, limit: MAX_UPLOAD_SIZE_BYTES }));
   app.useStaticAssets(uploadsBucketAbsolutePath, {
     prefix: UPLOADS_STATIC_URL_PREFIX,
   });
@@ -21,7 +29,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
   app.setGlobalPrefix('rag');
-
+  
   app.enableCors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
