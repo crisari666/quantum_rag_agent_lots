@@ -7,6 +7,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 import { ProjectDocumentField } from './types/project-document-field.type';
+import { ProjectLotOption } from './types/project-lot-option.type';
 
 /**
  * Service responsible for project persistence and business logic.
@@ -278,6 +279,8 @@ export class ProjectsService {
       lat: dto.lat,
       lng: dto.lng,
       priceSell: dto.priceSell,
+      separation: dto.separation ?? 0,
+      lotOptions: dto.lotOptions,
       commissionPercentage: dto.commissionPercentage,
       commissionValue: dto.commissionValue,
       amenities,
@@ -305,6 +308,10 @@ export class ProjectsService {
     if (dto.lat !== undefined) payload.lat = dto.lat;
     if (dto.lng !== undefined) payload.lng = dto.lng;
     if (dto.priceSell !== undefined) payload.priceSell = dto.priceSell;
+    if (dto.separation !== undefined) payload.separation = dto.separation;
+    if (dto.lotOptions !== undefined) {
+      payload.lotOptions = dto.lotOptions;
+    }
     if (dto.commissionPercentage !== undefined) {
       payload.commissionPercentage = dto.commissionPercentage;
     }

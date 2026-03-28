@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { ProjectLotOption } from '../types/project-lot-option.type';
 
 export type ProjectDocument = Project & Document;
 
@@ -34,6 +35,27 @@ export class Project {
 
   @Prop({ required: true })
   priceSell: number;
+
+  /**
+   * Separation measure for the development (e.g. meters between lots); product-defined unit.
+   */
+  @Prop({ default: 0 })
+  separation: number;
+
+  /**
+   * Available lot variants: area and price per option.
+   */
+  @Prop({
+    type: [
+      {
+        _id: false,
+        area: { type: Number, required: true },
+        price: { type: Number, required: true },
+      },
+    ],
+    default: [],
+  })
+  lotOptions: ProjectLotOption[];
 
   @Prop({ default: false })
   deleted: boolean;

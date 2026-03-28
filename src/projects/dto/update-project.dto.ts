@@ -7,8 +7,10 @@ import {
   IsUrl,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ProjectLotOptionDto } from './project-lot-option.dto';
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5000;
@@ -76,6 +78,28 @@ export class UpdateProjectDto {
   @Min(0)
   @Type(() => Number)
   priceSell?: number;
+
+  @ApiPropertyOptional({
+    example: 8,
+    minimum: 0,
+    description:
+      'Separation for the development (e.g. meters between lots); meaning is product-defined.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  separation?: number;
+
+  @ApiPropertyOptional({
+    type: [ProjectLotOptionDto],
+    description: 'Replaces the full list when sent. Use [] to clear all options.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProjectLotOptionDto)
+  lotOptions?: ProjectLotOptionDto[];
 
   @ApiPropertyOptional({ example: 5, minimum: 0 })
   @IsOptional()
