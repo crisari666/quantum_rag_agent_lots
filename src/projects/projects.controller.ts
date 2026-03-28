@@ -274,6 +274,19 @@ export class ProjectsController {
     });
   }
 
+  @Delete(':id/reel-video')
+  @ApiOperation({ summary: 'Remove reel video and delete file from storage' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiResponse({ status: 200, description: 'Reel cleared or was already empty; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async removeProjectReelVideo(@Param('id') projectId: string) {
+    const project = await this.projectsService.clearReelVideo(projectId);
+    return {
+      message: 'Reel video removed successfully',
+      project,
+    };
+  }
+
   @Post(':id/plane')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -310,6 +323,19 @@ export class ProjectsController {
       field: 'plane',
       fileType: 'plane',
     });
+  }
+
+  @Delete(':id/plane')
+  @ApiOperation({ summary: 'Remove project plane file and delete from storage' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiResponse({ status: 200, description: 'Plane cleared or was already empty; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async removeProjectPlane(@Param('id') projectId: string) {
+    const project = await this.projectsService.clearPlane(projectId);
+    return {
+      message: 'Project plane removed successfully',
+      project,
+    };
   }
 
   @Post(':id/brochure')
@@ -350,6 +376,322 @@ export class ProjectsController {
     });
   }
 
+  @Delete(':id/brochure')
+  @ApiOperation({ summary: 'Remove project brochure and delete file from storage' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiResponse({ status: 200, description: 'Brochure cleared or was already empty; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async removeProjectBrochure(@Param('id') projectId: string) {
+    const project = await this.projectsService.clearBrochure(projectId);
+    return {
+      message: 'Project brochure removed successfully',
+      project,
+    };
+  }
+
+  @Post(':id/card-project')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid file type. Allowed: jpeg, jpg, png, webp'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload card image for project listings (replaces previous)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Card image file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Card image uploaded and assigned to cardProject.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public uploadProjectCardImage(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.projectDocumentUploadService.uploadDocument({
+      projectId,
+      file,
+      field: 'cardProject',
+      fileType: 'card_project',
+    });
+  }
+
+  @Delete(':id/card-project')
+  @ApiOperation({ summary: 'Remove project card image and delete file from storage' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiResponse({ status: 200, description: 'Card cleared or was already empty; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async removeProjectCardImage(@Param('id') projectId: string) {
+    const project = await this.projectsService.clearCardProject(projectId);
+    return {
+      message: 'Card image removed successfully',
+      project,
+    };
+  }
+
+  @Post(':id/horizontal-images')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid file type. Allowed: jpeg, jpg, png, webp'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload a horizontal (landscape) image for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Horizontal image file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Horizontal image uploaded and added to horizontalImages.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectHorizontalImage(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const { buffer, format } = await this.imageCompressionService.compress(file.buffer);
+    const fileName = this.projectImageStorageService.buildHorizontalImageFileName(
+      project.title,
+      format,
+    );
+    await this.projectImageStorageService.saveFile(buffer, fileName);
+    const updatedProject = await this.projectsService.addHorizontalImage(projectId, fileName);
+    return {
+      message: 'Horizontal image uploaded successfully',
+      imageName: fileName,
+      project: updatedProject,
+    };
+  }
+
+  @Post(':id/horizontal-images/multiple')
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid file type. Allowed: jpeg, jpg, png, webp'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload multiple horizontal (landscape) images for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Horizontal image files',
+        },
+      },
+      required: ['files'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Horizontal images uploaded and added to horizontalImages.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectHorizontalImages(
+    @Param('id') projectId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) {
+      throw new BadRequestException('No files uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const imageNames: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const { buffer, format } = await this.imageCompressionService.compress(file.buffer);
+      const imageName = this.projectImageStorageService.buildHorizontalImageFileName(
+        project.title,
+        format,
+        index,
+      );
+      await this.projectImageStorageService.saveFile(buffer, imageName);
+      imageNames.push(imageName);
+    }
+    const updatedProject = await this.projectsService.addHorizontalImages(projectId, imageNames);
+    return {
+      message: 'Horizontal images uploaded successfully',
+      imageNames,
+      project: updatedProject,
+    };
+  }
+
+  @Post(':id/vertical-videos')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_REEL_VIDEO_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_REEL_VIDEO_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid vertical video type. Allowed: mp4, webm, mov, avi'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload a vertical (portrait) video for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Vertical video file' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Vertical video uploaded and added to verticalVideos.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectVerticalVideo(
+    @Param('id') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const extension = this.resolveUploadedFileExtension(file);
+    const fileName = this.projectImageStorageService.buildVerticalVideoFileName(
+      project.title,
+      extension,
+    );
+    await this.projectImageStorageService.saveFile(file.buffer, fileName);
+    const updatedProject = await this.projectsService.addVerticalVideo(projectId, fileName);
+    return {
+      message: 'Vertical video uploaded successfully',
+      videoName: fileName,
+      project: updatedProject,
+    };
+  }
+
+  @Post(':id/vertical-videos/multiple')
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: { fileSize: MAX_REEL_VIDEO_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_REEL_VIDEO_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid vertical video type. Allowed: mp4, webm, mov, avi'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload multiple vertical (portrait) videos for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Vertical video files',
+        },
+      },
+      required: ['files'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Vertical videos uploaded and added to verticalVideos.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectVerticalVideos(
+    @Param('id') projectId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) {
+      throw new BadRequestException('No files uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const videoNames: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const extension = this.resolveUploadedFileExtension(file);
+      const videoName = this.projectImageStorageService.buildVerticalVideoFileName(
+        project.title,
+        extension,
+        index,
+      );
+      await this.projectImageStorageService.saveFile(file.buffer, videoName);
+      videoNames.push(videoName);
+    }
+    const updatedProject = await this.projectsService.addVerticalVideos(projectId, videoNames);
+    return {
+      message: 'Vertical videos uploaded successfully',
+      videoNames,
+      project: updatedProject,
+    };
+  }
+
+  @Delete(':id/horizontal-images/:imageName')
+  @ApiOperation({ summary: 'Remove a horizontal image from a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({
+    name: 'imageName',
+    description: 'Horizontal image filename (e.g. horizontal_image_project_1709452800000.webp)',
+  })
+  @ApiResponse({ status: 200, description: 'Horizontal image removed; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project or image not found.' })
+  public async removeProjectHorizontalImage(
+    @Param('id') projectId: string,
+    @Param('imageName') imageName: string,
+  ) {
+    const project = await this.projectsService.removeHorizontalImage(projectId, imageName);
+    return {
+      message: 'Horizontal image removed successfully',
+      imageName,
+      project,
+    };
+  }
+
+  @Delete(':id/vertical-videos/:videoName')
+  @ApiOperation({ summary: 'Remove a vertical video from a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({
+    name: 'videoName',
+    description: 'Vertical video filename (e.g. vertical_video_project_1709452800000.mp4)',
+  })
+  @ApiResponse({ status: 200, description: 'Vertical video removed; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project or video not found.' })
+  public async removeProjectVerticalVideo(
+    @Param('id') projectId: string,
+    @Param('videoName') videoName: string,
+  ) {
+    const project = await this.projectsService.removeVerticalVideo(projectId, videoName);
+    return {
+      message: 'Vertical video removed successfully',
+      videoName,
+      project,
+    };
+  }
+
   @Delete(':id/images/:imageName')
   @ApiOperation({ summary: 'Remove an image from a project' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
@@ -387,6 +729,16 @@ export class ProjectsController {
   @ApiResponse({ status: 404, description: 'Project not found.' })
   public remove(@Param('id') id: string) {
     return this.projectsService.remove(id);
+  }
+
+  private resolveUploadedFileExtension(file: Express.Multer.File): string {
+    const parts = file.originalname.split('.');
+    const extension =
+      parts.length > 1 ? parts[parts.length - 1].trim().toLowerCase() : '';
+    if (!extension) {
+      throw new BadRequestException('Uploaded file must include an extension');
+    }
+    return extension;
   }
 
 }

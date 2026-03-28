@@ -105,4 +105,30 @@ export class UpdateProjectDto {
   @IsArray()
   @IsUrl({}, { each: true })
   images?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Card image URL for project listings',
+    type: String,
+  })
+  @IsOptional()
+  @IsUrl()
+  cardProject?: string;
+
+  @ApiPropertyOptional({
+    description: 'Horizontal (landscape) image URLs',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  horizontalImages?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Vertical (portrait) video URLs',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  verticalVideos?: string[];
 }

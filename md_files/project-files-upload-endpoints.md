@@ -82,7 +82,17 @@ Final base path:
   - `fileName`
   - `project` (updated)
 
-## 5) Upload Plane File
+## 5) Delete Reel Video
+
+Clears `reelVideo` and deletes the stored file when present.
+
+- **Method**: `DELETE`
+- **Path**: `/rag/projects/:id/reel-video`
+- **Response (200)**:
+  - `message`
+  - `project` (updated; `reelVideo` is `''` if cleared)
+
+## 6) Upload Plane File
 
 - **Method**: `POST`
 - **Path**: `/rag/projects/:id/plane`
@@ -100,7 +110,17 @@ Final base path:
   - `fileName`
   - `project` (updated)
 
-## 6) Upload Brochure File
+## 7) Delete Plane File
+
+Clears `plane` and deletes the stored file when present.
+
+- **Method**: `DELETE`
+- **Path**: `/rag/projects/:id/plane`
+- **Response (200)**:
+  - `message`
+  - `project` (updated; `plane` is `''` if cleared)
+
+## 8) Upload Brochure File
 
 - **Method**: `POST`
 - **Path**: `/rag/projects/:id/brochure`
@@ -117,6 +137,16 @@ Final base path:
   - `message`
   - `fileName`
   - `project` (updated)
+
+## 9) Delete Brochure File
+
+Clears `brochure` and deletes the stored file when present.
+
+- **Method**: `DELETE`
+- **Path**: `/rag/projects/:id/brochure`
+- **Response (200)**:
+  - `message`
+  - `project` (updated; `brochure` is `''` if cleared)
 
 ## Project Schema Fields
 

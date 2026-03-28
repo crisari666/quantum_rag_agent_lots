@@ -32,6 +32,34 @@ export class ProjectImageStorageService {
   }
 
   /**
+   * Builds a unique filename for horizontal (landscape) image uploads.
+   */
+  public buildHorizontalImageFileName(
+    projectName: string,
+    format: string,
+    index = 0,
+  ): string {
+    const normalizedProjectName = this.normalizeProjectName(projectName);
+    const timestamp = Date.now();
+    const suffix = index > 0 ? `_${index}` : '';
+    return `horizontal_image_${normalizedProjectName}_${timestamp}${suffix}.${format}`;
+  }
+
+  /**
+   * Builds a unique filename for vertical (portrait) video uploads.
+   */
+  public buildVerticalVideoFileName(
+    projectName: string,
+    extension: string,
+    index = 0,
+  ): string {
+    const normalizedProjectName = this.normalizeProjectName(projectName);
+    const timestamp = Date.now();
+    const suffix = index > 0 ? `_${index}` : '';
+    return `vertical_video_${normalizedProjectName}_${timestamp}${suffix}.${extension}`;
+  }
+
+  /**
    * Ensures the upload directory exists and writes the buffer to a file.
    * Returns the filename (not full path) for storing in the project.
    */

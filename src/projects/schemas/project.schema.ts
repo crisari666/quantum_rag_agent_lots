@@ -49,6 +49,19 @@ export class Project {
 
   @Prop({ type: [String], default: [] })
   images: string[];
+
+  /** Single image filename for project card display in listings. */
+  @Prop({ trim: true, default: '' })
+  cardProject: string;
+
+  /** Landscape-oriented image filenames for gallery or banners. */
+  @Prop({ type: [String], default: [] })
+  horizontalImages: string[];
+
+  /** Portrait-oriented video filenames. */
+  @Prop({ type: [String], default: [] })
+  verticalVideos: string[];
+
   @Prop({ trim: true, default: '' })
   reelVideo: string;
 

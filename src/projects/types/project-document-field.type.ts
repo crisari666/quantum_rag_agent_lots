@@ -1,1 +1,5 @@
-export type ProjectDocumentField = 'reelVideo' | 'plane' | 'brochure';
+export type ProjectDocumentField =
+  | 'reelVideo'
+  | 'plane'
+  | 'brochure'
+  | 'cardProject';

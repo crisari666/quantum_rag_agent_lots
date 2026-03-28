@@ -207,6 +207,61 @@ export class ProjectsService {
     return { project: updated, previousFileName };
   }
 
+  /**
+   * Clears a single-file document field and deletes the stored file when present.
+   */
+  public async clearDocumentField(
+    projectId: string,
+    field: ProjectDocumentField,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const previousFileName = String(project[field] ?? '').trim();
+    if (previousFileName) {
+      await this.projectImageStorageService.deleteFile(previousFileName);
+    }
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { [field]: '' }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  /**
+   * Clears the card image field and deletes the file from storage when present.
+   */
+  public async clearCardProject(projectId: string): Promise<ProjectDocument> {
+    return this.clearDocumentField(projectId, 'cardProject');
+  }
+
+  /**
+   * Clears the reel video field and deletes the file from storage when present.
+   */
+  public async clearReelVideo(projectId: string): Promise<ProjectDocument> {
+    return this.clearDocumentField(projectId, 'reelVideo');
+  }
+
+  /**
+   * Clears the plane document field and deletes the file from storage when present.
+   */
+  public async clearPlane(projectId: string): Promise<ProjectDocument> {
+    return this.clearDocumentField(projectId, 'plane');
+  }
+
+  /**
+   * Clears the brochure field and deletes the file from storage when present.
+   */
+  public async clearBrochure(projectId: string): Promise<ProjectDocument> {
+    return this.clearDocumentField(projectId, 'brochure');
+  }
+
   private mapCreateDtoToDocument(
     dto: CreateProjectDto,
   ): Partial<ProjectDocument> {
@@ -227,6 +282,9 @@ export class ProjectsService {
       commissionValue: dto.commissionValue,
       amenities,
       images: dto.images ?? [],
+      cardProject: dto.cardProject ?? '',
+      horizontalImages: dto.horizontalImages ?? [],
+      verticalVideos: dto.verticalVideos ?? [],
       reelVideo: '',
       plane: '',
       brochure: '',
@@ -257,6 +315,177 @@ export class ProjectsService {
       payload.amenities = dto.amenities.map((id) => new Types.ObjectId(id));
     }
     if (dto.images !== undefined) payload.images = dto.images;
+    if (dto.cardProject !== undefined) payload.cardProject = dto.cardProject;
+    if (dto.horizontalImages !== undefined) {
+      payload.horizontalImages = dto.horizontalImages;
+    }
+    if (dto.verticalVideos !== undefined) payload.verticalVideos = dto.verticalVideos;
     return payload;
+  }
+
+  /**
+   * Appends a horizontal image filename to the project's horizontalImages array.
+   */
+  public async addHorizontalImage(
+    projectId: string,
+    imageFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const horizontalImages = [...(project.horizontalImages ?? []), imageFileName];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { horizontalImages }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  public async addHorizontalImages(
+    projectId: string,
+    imageFileNames: string[],
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const horizontalImages = [
+      ...(project.horizontalImages ?? []),
+      ...imageFileNames,
+    ];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { horizontalImages }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  /**
+   * Removes a horizontal image from the project and deletes the file from storage.
+   */
+  public async removeHorizontalImage(
+    projectId: string,
+    imageName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const horizontalImages = project.horizontalImages ?? [];
+    const index = horizontalImages.indexOf(imageName);
+    if (index === -1) {
+      throw new NotFoundException(
+        `Horizontal image ${imageName} not found in project ${projectId}`,
+      );
+    }
+    const newHorizontalImages = horizontalImages.filter(
+      (name) => name !== imageName,
+    );
+    await this.projectImageStorageService.deleteFile(imageName);
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { horizontalImages: newHorizontalImages },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  public async addVerticalVideo(
+    projectId: string,
+    videoFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const verticalVideos = [...(project.verticalVideos ?? []), videoFileName];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { verticalVideos }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  public async addVerticalVideos(
+    projectId: string,
+    videoFileNames: string[],
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const verticalVideos = [...(project.verticalVideos ?? []), ...videoFileNames];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { verticalVideos }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  /**
+   * Removes a vertical video from the project and deletes the file from storage.
+   */
+  public async removeVerticalVideo(
+    projectId: string,
+    videoFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const verticalVideos = project.verticalVideos ?? [];
+    const index = verticalVideos.indexOf(videoFileName);
+    if (index === -1) {
+      throw new NotFoundException(
+        `Vertical video ${videoFileName} not found in project ${projectId}`,
+      );
+    }
+    const newVerticalVideos = verticalVideos.filter(
+      (name) => name !== videoFileName,
+    );
+    await this.projectImageStorageService.deleteFile(videoFileName);
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { verticalVideos: newVerticalVideos },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
   }
 }

@@ -101,4 +101,32 @@ export class CreateProjectDto {
   @IsUrl({}, { each: true })
   images?: string[];
 
+  @ApiPropertyOptional({
+    description: 'Card image URL for project listings',
+    example: 'https://example.com/card.webp',
+  })
+  @IsOptional()
+  @IsUrl()
+  cardProject?: string;
+
+  @ApiPropertyOptional({
+    description: 'Horizontal (landscape) image URLs',
+    example: ['https://example.com/banner.jpg'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  horizontalImages?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Vertical (portrait) video URLs',
+    example: ['https://example.com/promo.mp4'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  verticalVideos?: string[];
+
 }
