@@ -5,11 +5,17 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import {
+  MAX_PROJECT_SLUG_LENGTH,
+  PROJECT_SLUG_REGEX,
+} from '../constants/project-slug.constants';
 import { ProjectLotOptionDto } from './project-lot-option.dto';
 
 const MAX_TITLE_LENGTH = 500;
@@ -22,6 +28,32 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(MAX_TITLE_LENGTH)
   title: string;
+
+  @ApiPropertyOptional({
+    example: 'lote-norte',
+    maxLength: MAX_PROJECT_SLUG_LENGTH,
+    description:
+      'Unique URL slug (lowercase kebab-case: a-z, digits, hyphens). Omit if not used.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const normalized = value.trim().toLowerCase();
+    return normalized === '' ? undefined : normalized;
+  })
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsString()
+  @MaxLength(MAX_PROJECT_SLUG_LENGTH)
+  @Matches(PROJECT_SLUG_REGEX, {
+    message:
+      'slug must be lowercase kebab-case: letters, digits, single hyphens between segments',
+  })
+  slug?: string;
 
   @ApiPropertyOptional({
     example: 'Residential lots with infrastructure and easy credit.',

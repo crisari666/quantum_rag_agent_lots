@@ -57,6 +57,7 @@ export class ProjectsController {
   @ApiBody({ type: CreateProjectDto })
   @ApiResponse({ status: 201, description: 'Project created.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 409, description: 'Slug already in use.' })
   public create(@Body() createProjectDto: CreateProjectDto) {
     return this.projectsService.create(createProjectDto);
   }
@@ -93,6 +94,7 @@ export class ProjectsController {
   @ApiResponse({ status: 200, description: 'Project updated.' })
   @ApiResponse({ status: 404, description: 'Project not found.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 409, description: 'Slug already in use.' })
   public update(
     @Param('id') id: string,
     @Body() updateProjectDto: UpdateProjectDto,

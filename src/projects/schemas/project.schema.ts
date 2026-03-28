@@ -9,6 +9,10 @@ export class Project {
   @Prop({ required: true, trim: true })
   title: string;
 
+  /** URL-friendly unique identifier among non-deleted projects (optional). */
+  @Prop({ trim: true, lowercase: true, unique: true, sparse: true })
+  slug?: string;
+
   @Prop({ trim: true, default: '' })
   description: string;
 

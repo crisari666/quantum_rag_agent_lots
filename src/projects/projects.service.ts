@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Project, ProjectDocument } from './schemas/project.schema';
@@ -21,7 +25,10 @@ export class ProjectsService {
 
   public async create(createProjectDto: CreateProjectDto): Promise<ProjectDocument> {
     const payload = this.mapCreateDtoToDocument(createProjectDto);
-    const project = new this.projectModel({...payload, enabled: false});
+    if (payload.slug) {
+      await this.ensureProjectSlugAvailable(payload.slug);
+    }
+    const project = new this.projectModel({ ...payload, enabled: false });
     return project.save();
   }
 
@@ -30,8 +37,27 @@ export class ProjectsService {
     updateProjectDto: UpdateProjectDto,
   ): Promise<ProjectDocument> {
     const payload = this.mapUpdateDtoToDocument(updateProjectDto);
+    const shouldUnsetSlug =
+      updateProjectDto.slug !== undefined &&
+      updateProjectDto.slug.trim() === '';
+    if (shouldUnsetSlug) {
+      delete payload.slug;
+    }
+    if (payload.slug) {
+      await this.ensureProjectSlugAvailable(payload.slug, id);
+    }
+    const mongoUpdate: Record<string, unknown> = {};
+    if (Object.keys(payload).length > 0) {
+      mongoUpdate.$set = payload;
+    }
+    if (shouldUnsetSlug) {
+      mongoUpdate.$unset = { slug: '' };
+    }
+    if (Object.keys(mongoUpdate).length === 0) {
+      return this.getById(id);
+    }
     const project = await this.projectModel
-      .findByIdAndUpdate(id, payload, { new: true })
+      .findByIdAndUpdate(id, mongoUpdate, { new: true })
       .populate('amenities', 'title')
       .exec();
     if (!project) {
@@ -263,14 +289,46 @@ export class ProjectsService {
     return this.clearDocumentField(projectId, 'brochure');
   }
 
+  /**
+   * Ensures slug is not used by another non-deleted project.
+   */
+  private async ensureProjectSlugAvailable(
+    slug: string,
+    excludeProjectId?: string,
+  ): Promise<void> {
+    const filter: Record<string, unknown> = { deleted: false, slug };
+    if (excludeProjectId) {
+      filter._id = { $ne: excludeProjectId };
+    }
+    const taken = await this.projectModel.exists(filter).exec();
+    if (taken) {
+      throw new ConflictException(`Project slug "${slug}" is already in use`);
+    }
+  }
+
+  private normalizeProjectSlug(
+    raw: string | undefined,
+  ): string | undefined {
+    if (raw === undefined || raw === null) {
+      return undefined;
+    }
+    const trimmed = raw.trim().toLowerCase();
+    if (trimmed === '') {
+      return undefined;
+    }
+    return trimmed;
+  }
+
   private mapCreateDtoToDocument(
     dto: CreateProjectDto,
   ): Partial<ProjectDocument> {
     const amenities = (dto.amenities ?? []).map(
       (id) => new Types.ObjectId(id),
     );
+    const normalizedSlug = this.normalizeProjectSlug(dto.slug);
     return {
       title: dto.title,
+      ...(normalizedSlug !== undefined ? { slug: normalizedSlug } : {}),
       description: dto.description ?? '',
       location: dto.location,
       city: dto.city ?? '',
@@ -300,6 +358,12 @@ export class ProjectsService {
   ): Partial<ProjectDocument> {
     const payload: Partial<ProjectDocument> = {};
     if (dto.title !== undefined) payload.title = dto.title;
+    if (dto.slug !== undefined) {
+      const normalizedSlug = this.normalizeProjectSlug(dto.slug);
+      if (normalizedSlug !== undefined) {
+        payload.slug = normalizedSlug;
+      }
+    }
     if (dto.description !== undefined) payload.description = dto.description;
     if (dto.location !== undefined) payload.location = dto.location;
     if (dto.city !== undefined) payload.city = dto.city;
