@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -39,6 +40,15 @@ export class AskAgentDto {
   @IsNotEmpty()
   @MaxLength(MAX_QUESTION_LENGTH)
   question!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Conversation id (UUID v4). Omit on first message; reuse the value returned by the previous ask to continue the same thread. When set, prior turns are loaded from the server for agent context and `chatHistory` is ignored.',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  conversationId?: string;
 
   @ApiPropertyOptional({
     description: 'Previous messages for conversation context',
