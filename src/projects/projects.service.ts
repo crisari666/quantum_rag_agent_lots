@@ -11,6 +11,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 import { ProjectDocumentField } from './types/project-document-field.type';
+import { ProjectAmenityGroup } from './types/project-amenity-group.type';
 import { ProjectLotOption } from './types/project-lot-option.type';
 
 /**
@@ -306,6 +307,19 @@ export class ProjectsService {
     }
   }
 
+  private mapAmenityGroupsDto(
+    groups: { icon: string; title: string; amenities: string[] }[] | undefined,
+  ): ProjectAmenityGroup[] {
+    if (groups === undefined || groups.length === 0) {
+      return [];
+    }
+    return groups.map((group) => ({
+      icon: group.icon,
+      title: group.title,
+      amenities: [...group.amenities],
+    }));
+  }
+
   private normalizeProjectSlug(
     raw: string | undefined,
   ): string | undefined {
@@ -342,6 +356,7 @@ export class ProjectsService {
       commissionPercentage: dto.commissionPercentage,
       commissionValue: dto.commissionValue,
       amenities,
+      amenitiesGroups: this.mapAmenityGroupsDto(dto.amenitiesGroups),
       images: dto.images ?? [],
       cardProject: dto.cardProject ?? '',
       horizontalImages: dto.horizontalImages ?? [],
@@ -384,6 +399,13 @@ export class ProjectsService {
     }
     if (dto.amenities !== undefined) {
       payload.amenities = dto.amenities.map((id) => new Types.ObjectId(id));
+    }
+    if (dto.amenitiesGroups !== undefined) {
+      payload.amenitiesGroups = dto.amenitiesGroups.map((group) => ({
+        icon: group.icon,
+        title: group.title,
+        amenities: [...group.amenities],
+      }));
     }
     if (dto.images !== undefined) payload.images = dto.images;
     if (dto.cardProject !== undefined) payload.cardProject = dto.cardProject;

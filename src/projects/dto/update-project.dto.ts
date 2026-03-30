@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
   IsArray,
   IsNumber,
   IsOptional,
@@ -16,12 +17,14 @@ import {
   MAX_PROJECT_SLUG_LENGTH,
   PROJECT_SLUG_REGEX,
 } from '../constants/project-slug.constants';
+import { ProjectAmenityGroupDto } from './project-amenity-group.dto';
 import { ProjectLotOptionDto } from './project-lot-option.dto';
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_LOCATION_LENGTH = 500;
 const MAX_CITY_STATE_COUNTRY_LENGTH = 200;
+const MAX_AMENITY_GROUPS = 50;
 
 export class UpdateProjectDto {
   @ApiPropertyOptional({ example: 'Lote Norte', maxLength: MAX_TITLE_LENGTH })
@@ -156,6 +159,18 @@ export class UpdateProjectDto {
   @IsArray()
   @IsString({ each: true })
   amenities?: string[];
+
+  @ApiPropertyOptional({
+    type: [ProjectAmenityGroupDto],
+    description:
+      'Replaces the full list when sent. Use [] to clear all groups. Independent of `amenities` IDs.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_AMENITY_GROUPS)
+  @ValidateNested({ each: true })
+  @Type(() => ProjectAmenityGroupDto)
+  amenitiesGroups?: ProjectAmenityGroupDto[];
 
   @ApiPropertyOptional({ description: 'Image URLs', type: [String] })
   @IsOptional()

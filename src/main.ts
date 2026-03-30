@@ -1,3 +1,4 @@
+import './express-augmentation';
 import { mkdirSync } from 'fs';
 import { json, urlencoded } from 'express';
 import { NestFactory } from '@nestjs/core';
@@ -23,18 +24,24 @@ async function bootstrap() {
   });
   const config = new DocumentBuilder()
     .setTitle('Omega RAG API')
-    .setDescription('API for the RAG Agent and parcelization projects')
+    .setDescription(
+      'API for the RAG Agent and parcelization projects. Send JWT in the TOKEN header (RS256, office back) unless the route is public.',
+    )
     .setVersion('1.0')
+    .addApiKey(
+      { type: 'apiKey', name: 'TOKEN', in: 'header' },
+      'TOKEN',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
+  document.security = [{ TOKEN: [] }];
   SwaggerModule.setup('api', app, document);
   app.setGlobalPrefix('rag');
   
   app.enableCors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    //mak allowedHeaders: ['Content-Type', 'Authorization'],
-    //credentials: true,
+    allowedHeaders: ['Content-Type', 'TOKEN'],
   });
   const defaultPort = 3000;
   const environmentPort = process.env.PORT_APP;

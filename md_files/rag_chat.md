@@ -1,4 +1,4 @@
-# Context and Objective
+c# Context and Objective
 We are building the Chat/RAG execution layer in a **NestJS** backend using **LangChain.js** and **Weaviate (v3 SDK)**. 
 The ingestion pipeline is already complete. Documents are stored in Weaviate under the index `ProjectDocument` with metadata fields: `projectId`, `docType`, and `source`.
 General knowledge documents (e.g., Urbanism laws, Ley 388, Ley 675) are stored with `projectId: "GLOBAL"`.

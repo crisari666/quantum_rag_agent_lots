@@ -1,8 +1,10 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CoreModule } from './core/core.module';
+import { TokenJwtMiddleware } from './core/middleware/token-jwt.middleware';
 import { RagAgentModule } from './rag-agent/rag-agent.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -10,6 +12,7 @@ import { AgentChatModule } from './agent-chat/agent-chat.module';
 
 @Module({
   imports: [
+    CoreModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -31,6 +34,10 @@ import { AgentChatModule } from './agent-chat/agent-chat.module';
     AgentChatModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, TokenJwtMiddleware],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  public configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(TokenJwtMiddleware).forRoutes('*');
+  }
+}

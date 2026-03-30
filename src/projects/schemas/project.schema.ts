@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { ProjectAmenityGroup } from '../types/project-amenity-group.type';
 import { ProjectLotOption } from '../types/project-lot-option.type';
 
 export type ProjectDocument = Project & Document;
@@ -72,6 +73,22 @@ export class Project {
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'Amenity' }], default: [] })
   amenities: Types.ObjectId[];
+
+  /**
+   * Grouped amenity labels for marketing UI (independent of `amenities` ObjectId refs).
+   */
+  @Prop({
+    type: [
+      {
+        _id: false,
+        icon: { type: String, required: true },
+        title: { type: String, required: true },
+        amenities: { type: [String], default: [] },
+      },
+    ],
+    default: [],
+  })
+  amenitiesGroups: ProjectAmenityGroup[];
 
   @Prop({ type: [String], default: [] })
   images: string[];
