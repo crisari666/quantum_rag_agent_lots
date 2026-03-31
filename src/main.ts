@@ -21,6 +21,11 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: MAX_UPLOAD_SIZE_BYTES }));
   app.useStaticAssets(uploadsBucketAbsolutePath, {
     prefix: UPLOADS_STATIC_URL_PREFIX,
+    setHeaders: (res) => {
+      res.set('Access-Control-Allow-Origin', '*'); // O tu dominio específico 'http://localhost:8081'
+      res.set('Access-Control-Allow-Methods', 'GET,OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    },
   });
   const config = new DocumentBuilder()
     .setTitle('Omega RAG API')
@@ -40,7 +45,7 @@ async function bootstrap() {
   
   app.enableCors({
     origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'TOKEN'],
   });
   const defaultPort = 3000;
