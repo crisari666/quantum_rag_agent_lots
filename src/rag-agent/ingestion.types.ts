@@ -14,6 +14,17 @@ export interface IngestionSourceParams {
   readonly docType: string;
 }
 
+export interface UpdateIngestionSourceParams {
+  readonly projectId: string;
+  readonly currentDocType: string;
+  readonly currentSource: string;
+  readonly newDocType?: string;
+  readonly newSource?: string;
+  readonly rawText?: string;
+  readonly externalUrl?: string;
+  readonly file?: Express.Multer.File;
+}
+
 export interface IngestionResult {
   readonly message: string;
   readonly chunks: number;

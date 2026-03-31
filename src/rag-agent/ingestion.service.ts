@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WeaviateStore } from '@langchain/weaviate';
 import { OpenAIEmbeddings } from '@langchain/openai';
@@ -9,6 +9,7 @@ import {
   IngestionParams,
   IngestionSourceParams,
   IngestionResult,
+  UpdateIngestionSourceParams,
   VectorizedDocument,
 } from './ingestion.types';
 import {
@@ -117,6 +118,52 @@ export class IngestionService {
   }
 
   /**
+   * Updates an existing ingested logical document by removing old chunks and indexing new content.
+   */
+  public async updateIngestedDocumentFromSource(
+    params: UpdateIngestionSourceParams,
+  ): Promise<IngestionResult> {
+    const previousChunksRemoved = await this.removeDocumentChunks({
+      projectId: params.projectId,
+      docType: params.currentDocType,
+      source: params.currentSource,
+    });
+    if (previousChunksRemoved === 0) {
+      throw new NotFoundException(
+        'No ingested document found for the provided projectId/currentDocType/currentSource.',
+      );
+    }
+    const targetDocType = params.newDocType?.trim() || params.currentDocType;
+    const targetSource = params.newSource?.trim() || params.currentSource;
+    const { rawText, source } = await this.resolveInputContent({
+      rawText: params.rawText,
+      externalUrl: params.externalUrl,
+      source: targetSource,
+      file: params.file,
+    });
+    const documents = await this.splitDocument({
+      rawText,
+      projectId: params.projectId,
+      docType: targetDocType,
+      source,
+    });
+    const apiKey = this.getOpenAiApiKey();
+    const embeddings = new OpenAIEmbeddings({
+      openAIApiKey: apiKey,
+    });
+    await WeaviateStore.fromDocuments(documents, embeddings, {
+      client: this.weaviateService.client,
+      indexName: this.weaviateService.indexName,
+      textKey: 'text',
+    });
+    return {
+      message: 'Document updated successfully',
+      chunks: documents.length,
+      previousChunksRemoved,
+    };
+  }
+
+  /**
    * Removes existing chunks for the same logical document so re-ingestion does not duplicate vectors.
    * Identity: `projectId` + `source` + `docType`. Skipped when `source` is the generic raw-text fallback.
    */
@@ -126,6 +173,18 @@ export class IngestionService {
     if (params.source === INGESTION_FALLBACK_SOURCE_RAW_TEXT) {
       return 0;
     }
+    return this.removeDocumentChunks({
+      projectId: params.projectId,
+      source: params.source,
+      docType: params.docType,
+    });
+  }
+
+  private async removeDocumentChunks(params: {
+    projectId: string;
+    source: string;
+    docType: string;
+  }): Promise<number> {
     const client = this.weaviateService.client;
     const collection = client.collections.get<ProjectDocumentProperties>(
       this.weaviateService.indexName,

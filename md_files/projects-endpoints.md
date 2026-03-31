@@ -12,6 +12,8 @@ The HTTP prefix in this Nest app is typically **`/rag`** (e.g. `POST /rag/projec
 | DELETE | `/projects/:id` | Param: `id` (ObjectId). Soft delete | 200, 404 |
 | POST | `/projects/:id/images` | Param: `id`. Body: `multipart/form-data`, field `file` (image: jpeg/png/webp, max 5MB). Stored as `projectId_timestamp.webp`, appended to project.images | 201, 400, 404 |
 | DELETE | `/projects/:id/images/:imageName` | Param: `id` (ObjectId), `imageName` (e.g. `projectId_timestamp.webp`). Removes image from project and deletes file from storage | 200, 404 |
+| GET | `/projects/:id/resources/:attribute/download` | Param: `id` (ObjectId), `attribute` in `brochure \| plane \| reelVideo \| cardProject \| verticalVideos`. Downloads file as binary attachment. If `attribute=verticalVideos`, send query `?fileName=<value from verticalVideos[]>` | 200, 400, 404 |
+| GET | `/projects/:id/resources/vertical-videos/:fileName/download` | Param: `id` (ObjectId), `fileName` from `project.verticalVideos[]`. Downloads that vertical media file as binary attachment | 200, 404 |
 
 **Note:** Route order: `GET admin/test` before `GET :id` to avoid "admin" as id.
 
@@ -94,5 +96,18 @@ Structured groups for the marketing UI: each group has an **icon** (string — i
 }
 ```
 404 if project not found or image not in project.
+
+**GET /projects/:id/resources/:attribute/download** (200): binary stream with response header:
+
+`Content-Disposition: attachment; filename="<stored-file-name>"`
+
+- **400** when `attribute` is invalid, or `fileName` is missing while `attribute=verticalVideos`.
+- **404** when project does not exist, attribute is empty, vertical file is not in `verticalVideos`, or file is missing from storage.
+
+**GET /projects/:id/resources/vertical-videos/:fileName/download** (200): binary stream with response header:
+
+`Content-Disposition: attachment; filename="<stored-file-name>"`
+
+- **404** when project does not exist, file name is not present in `verticalVideos`, or file is missing from storage.
 
 **GET /projects/admin/test** (200): `{ "status": "ok" }`

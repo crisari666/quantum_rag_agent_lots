@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -23,6 +24,7 @@ import { MAX_UPLOAD_SIZE_BYTES } from '../config/upload-bucket.constants';
 import { IngestionService } from './ingestion.service';
 import { IngestDocumentDto } from './dto/ingest-document.dto';
 import { IngestGlobalDocumentDto } from './dto/ingest-global-document.dto';
+import { UpdateIngestedDocumentDto } from './dto/update-ingested-document.dto';
 import { GLOBAL_PROJECT_ID } from './constants/ingestion.constants';
 
 @ApiTags('RAG Ingestion')
@@ -159,6 +161,80 @@ export class IngestionController {
       ...result,
       projectId: GLOBAL_PROJECT_ID,
     };
+  }
+
+  @Patch('ingestion')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_BYTES } }),
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @ApiOperation({
+    summary: 'Update an existing ingested document and re-vectorize its content',
+  })
+  @ApiConsumes('application/json', 'multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'Project ID' },
+        currentDocType: {
+          type: 'string',
+          description: 'Current document type used as identity',
+        },
+        currentSource: {
+          type: 'string',
+          description: 'Current source used as identity',
+        },
+        newDocType: {
+          type: 'string',
+          description: 'New document type after update (optional)',
+        },
+        newSource: {
+          type: 'string',
+          description: 'New source citation after update (optional)',
+        },
+        rawText: {
+          type: 'string',
+          description: 'Updated text for embeddings',
+        },
+        externalUrl: {
+          type: 'string',
+          description: 'URL to fetch updated text content',
+        },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Text-based file with updated content',
+        },
+      },
+      required: ['projectId', 'currentDocType', 'currentSource'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Document updated and vectorized successfully.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No existing ingested document matched the provided identity.',
+  })
+  @ApiResponse({ status: 400, description: 'Validation failed.' })
+  @ApiResponse({ status: 500, description: 'Update ingestion error.' })
+  public async updateIngestedDocument(
+    @Body() dto: UpdateIngestedDocumentDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
+    return this.ingestionService.updateIngestedDocumentFromSource({
+      projectId: dto.projectId,
+      currentDocType: dto.currentDocType,
+      currentSource: dto.currentSource,
+      newDocType: dto.newDocType,
+      newSource: dto.newSource,
+      rawText: dto.rawText,
+      externalUrl: dto.externalUrl,
+      file,
+    });
   }
 
   @Get('admin/test')

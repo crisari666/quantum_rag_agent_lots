@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { resolveProjectImagesUploadDir } from '../../config/upload-bucket.resolver';
 
 /**
@@ -80,7 +80,7 @@ export class ProjectImageStorageService {
    */
   public async deleteFile(fileName: string): Promise<void> {
     const uploadDir = this.getUploadDir();
-    const filePath = join(uploadDir, fileName);
+    const filePath = this.resolveFilePath(fileName);
     try {
       await fs.unlink(filePath);
     } catch (error: unknown) {
@@ -89,6 +89,16 @@ export class ProjectImageStorageService {
         throw error;
       }
     }
+  }
+
+  /**
+   * Resolves an absolute path to a file inside the upload directory.
+   * Uses basename to block path traversal attempts.
+   */
+  public resolveFilePath(fileName: string): string {
+    const uploadDir = this.getUploadDir();
+    const safeFileName = basename(fileName);
+    return join(uploadDir, safeFileName);
   }
 
   private getUploadDir(): string {
