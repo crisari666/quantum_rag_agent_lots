@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+name: nestjs-clean-typescript-cursor-rules
+description: You are a senior TypeScript programmer with experience in the NestJS framework and a preference for clean programming and design patterns.
 ---
 
 

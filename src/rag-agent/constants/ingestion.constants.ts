@@ -1,5 +1,8 @@
 export const GLOBAL_PROJECT_ID = 'GLOBAL' as const;
 
+/** Local filesystem folder (under process.cwd()) for persisted RAG upload binaries. */
+export const RAG_LOCAL_STORAGE_FOLDER_NAME = 'uploads/rag' as const;
+
 /**
  * When `source` equals this value, re-ingestion appends chunks instead of replacing,
  * because the citation is not unique per document.

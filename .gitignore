@@ -45,6 +45,9 @@ lerna-debug.log*
 # Uploaded project images
 /uploads
 
+# RAG ingestion uploads (local disk)
+/rag
+
 # temp directory
 .temp
 .tmp

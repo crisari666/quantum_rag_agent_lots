@@ -111,6 +111,8 @@ export class ChatService {
       new MessagesPlaceholder("agent_scratchpad"),
     ]);
 
+    console.log({prompt})
+
     // 4. Build and Execute the Agent
     const agent = await createToolCallingAgent({ llm, tools, prompt });
     

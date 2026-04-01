@@ -1,9 +1,12 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WeaviateStore } from '@langchain/weaviate';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Filters, type Properties } from 'weaviate-client';
+import { PDFParse } from 'pdf-parse';
 import { WeaviateService } from './weaviate.service';
 import {
   IngestionParams,
@@ -15,6 +18,7 @@ import {
 import {
   GLOBAL_PROJECT_ID,
   INGESTION_FALLBACK_SOURCE_RAW_TEXT,
+  RAG_LOCAL_STORAGE_FOLDER_NAME,
 } from './constants/ingestion.constants';
 
 const DEFAULT_FETCH_LIMIT = 100;
@@ -85,7 +89,14 @@ export class IngestionService {
   public async ingestDocumentFromSource(
     params: IngestionSourceParams,
   ): Promise<IngestionResult> {
-    const { rawText, source } = await this.resolveInputContent(params);
+    const { rawText, source } = await this.resolveInputContent({
+      projectId: params.projectId,
+      docType: params.docType,
+      rawText: params.rawText,
+      externalUrl: params.externalUrl,
+      source: params.source,
+      file: params.file,
+    });
     return this.ingestDocument({
       rawText,
       projectId: params.projectId,
@@ -108,7 +119,14 @@ export class IngestionService {
   public async ingestGlobalDocumentFromSource(
     params: Omit<IngestionSourceParams, 'projectId'>,
   ): Promise<IngestionResult> {
-    const { rawText, source } = await this.resolveInputContent(params);
+    const { rawText, source } = await this.resolveInputContent({
+      projectId: GLOBAL_PROJECT_ID,
+      docType: params.docType,
+      rawText: params.rawText,
+      externalUrl: params.externalUrl,
+      source: params.source,
+      file: params.file,
+    });
     return this.ingestDocument({
       rawText,
       projectId: GLOBAL_PROJECT_ID,
@@ -136,6 +154,8 @@ export class IngestionService {
     const targetDocType = params.newDocType?.trim() || params.currentDocType;
     const targetSource = params.newSource?.trim() || params.currentSource;
     const { rawText, source } = await this.resolveInputContent({
+      projectId: params.projectId,
+      docType: targetDocType,
       rawText: params.rawText,
       externalUrl: params.externalUrl,
       source: targetSource,
@@ -221,26 +241,38 @@ export class IngestionService {
    * The uploaded file or fetched URL supplies text for embeddings only; `source` is what the agent cites to vendors.
    */
   private async resolveInputContent(params: {
+    readonly projectId: string;
+    readonly docType: string;
     rawText?: string;
     externalUrl?: string;
     source?: string;
     file?: Express.Multer.File;
   }): Promise<{ rawText: string; source: string }> {
-    if (params.rawText && params.rawText.trim()) {
-      return {
-        rawText: params.rawText.trim(),
-        source: params.source?.trim() || 'raw-text',
-      };
-    }
+    const trimmedRaw = params.rawText?.trim() ?? '';
+    const hasRawText = trimmedRaw.length > 0;
     if (params.file?.buffer) {
-      const textFromFile = this.extractTextFromFile(params.file);
+      const fileName = await this.persistUploadedFileToRagFolder(
+        params.file,
+        params.projectId,
+        params.docType,
+      );
+      const textFromFile = await this.extractTextFromFile(params.file);
+      const combinedRawText = hasRawText
+        ? `${trimmedRaw}\n\n${textFromFile}`
+        : textFromFile;
       const vendorSource =
         params.source?.trim() ||
         params.file.originalname ||
         'uploaded-file';
       return {
-        rawText: textFromFile,
-        source: vendorSource,
+        rawText: combinedRawText,
+        source: fileName,
+      };
+    }
+    if (hasRawText) {
+      return {
+        rawText: trimmedRaw,
+        source: params.source?.trim() || 'raw-text',
       };
     }
     if (params.externalUrl) {
@@ -256,14 +288,99 @@ export class IngestionService {
     );
   }
 
-  private extractTextFromFile(file: Express.Multer.File): string {
+  private async persistUploadedFileToRagFolder(
+    file: Express.Multer.File,
+    projectId: string,
+    docType: string,
+  ): Promise<string> {
+    const ragDir = path.join(process.cwd(), RAG_LOCAL_STORAGE_FOLDER_NAME);
+    await fs.mkdir(ragDir, { recursive: true });
+    const safeProjectId = this.sanitizeStorageSegment(projectId, 'projectId');
+    const safeDocType = this.sanitizeStorageSegment(docType, 'docType');
+    const extension = this.resolveStoredFileExtension(file);
+    const storedName = `${safeProjectId}_${safeDocType}${extension}`;
+    await fs.writeFile(path.join(ragDir, storedName), file.buffer);
+    return storedName;
+  }
+
+  private sanitizeStorageSegment(value: string, label: string): string {
+    const trimmed = value.trim();
+    const safe = trimmed.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (!safe) {
+      throw new BadRequestException(
+        `Invalid ${label} for file storage; use a non-empty projectId and docType.`,
+      );
+    }
+    return safe;
+  }
+
+  private resolveStoredFileExtension(file: Express.Multer.File): string {
+    const fromName = path.extname(file.originalname || '').toLowerCase();
+    if (fromName && /^\.[a-z0-9.+_-]+$/i.test(fromName)) {
+      return fromName;
+    }
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    if (mime === 'application/pdf' || mime === 'application/x-pdf') {
+      return '.pdf';
+    }
+    if (mime.startsWith(SUPPORTED_TEXT_MIME_PREFIX)) {
+      const sub = mime.slice(SUPPORTED_TEXT_MIME_PREFIX.length).split(';')[0]?.trim();
+      if (!sub || sub === 'plain') {
+        return '.txt';
+      }
+      return `.${sub.replace(/[^a-z0-9]/gi, '_')}`;
+    }
+    if (SUPPORTED_TEXT_MIME_TYPES.includes(mime)) {
+      return '.txt';
+    }
+    return '';
+  }
+
+  private isPdfFile(file: Express.Multer.File): boolean {
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    if (mime === 'application/pdf' || mime === 'application/x-pdf') {
+      return true;
+    }
+    const name = file.originalname?.toLowerCase() ?? '';
+    return name.endsWith('.pdf');
+  }
+
+  private async extractTextFromPdf(buffer: Buffer): Promise<string> {
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const result = await parser.getText();
+      const text = result.text.trim();
+      if (!text) {
+        throw new BadRequestException(
+          'PDF text extraction returned empty content.',
+        );
+      }
+      return text;
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      const message =
+        err instanceof Error ? err.message : 'Unknown PDF parse error';
+      throw new BadRequestException(`Could not parse PDF: ${message}`);
+    } finally {
+      await parser.destroy().catch(() => undefined);
+    }
+  }
+
+  private async extractTextFromFile(
+    file: Express.Multer.File,
+  ): Promise<string> {
+    if (this.isPdfFile(file)) {
+      return this.extractTextFromPdf(file.buffer);
+    }
     const mimetype = file.mimetype?.toLowerCase() ?? '';
     const isTextMimeType =
       mimetype.startsWith(SUPPORTED_TEXT_MIME_PREFIX) ||
       SUPPORTED_TEXT_MIME_TYPES.includes(mimetype);
     if (!isTextMimeType) {
       throw new BadRequestException(
-        'Unsupported uploaded file type for ingestion. Upload text-based files or use externalUrl/rawText.',
+        'Unsupported uploaded file type for ingestion. Upload PDF, text-based files, or use externalUrl/rawText.',
       );
     }
     const text = file.buffer.toString('utf-8').trim();

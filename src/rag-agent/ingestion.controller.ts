@@ -77,7 +77,7 @@ export class IngestionController {
           type: 'string',
           format: 'binary',
           description:
-            'Text-based file: bytes are parsed for search; citation is `source` or original filename',
+            'Text or PDF file: content is extracted for search; file is saved as ./rag/{projectId}_{docType}[.ext] (overwrites if present); citation is `source` or original filename',
         },
       },
       required: ['projectId', 'docType'],
@@ -90,6 +90,7 @@ export class IngestionController {
     @Body() dto: IngestDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+    console.log({file})
     this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
     return this.ingestionService.ingestDocumentFromSource({
       projectId: dto.projectId,
@@ -133,7 +134,7 @@ export class IngestionController {
           type: 'string',
           format: 'binary',
           description:
-            'Text-based file for embedding extraction; citation is `source` or original filename',
+            'Text or PDF for embedding; saved as ./rag/GLOBAL_{docType}[.ext] (overwrites if present); citation is `source` or original filename',
         },
       },
       required: ['docType'],
@@ -149,6 +150,7 @@ export class IngestionController {
     @Body() dto: IngestGlobalDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+
     this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
     const result = await this.ingestionService.ingestGlobalDocumentFromSource({
       docType: dto.docType,
@@ -204,7 +206,8 @@ export class IngestionController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Text-based file with updated content',
+          description:
+            'Text or PDF with updated content; saved as ./rag/{projectId}_{newOrCurrentDocType}[.ext] (overwrites if present)',
         },
       },
       required: ['projectId', 'currentDocType', 'currentSource'],
@@ -224,6 +227,7 @@ export class IngestionController {
     @Body() dto: UpdateIngestedDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+    console.log({file})
     this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
     return this.ingestionService.updateIngestedDocumentFromSource({
       projectId: dto.projectId,
