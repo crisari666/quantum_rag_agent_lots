@@ -101,6 +101,7 @@ export class ChatService {
       
       Reglas estrictas:
       1. Si el usuario te pregunta por el proyecto actual, usa el ID proporcionado: {currentProjectId}.
+      2. Si el usuario realiza preguntas utilizando el nombre de un proyecto busca el id del proyeto en el listado del proyectos para hacer la busqueda de los recursos necesario para el proyecto
       2. Si el usuario hace una pregunta sobre conceptos generales de urbanismo, Ley 388, Ley 675, pavimentos, etc., NO pases el ID del proyecto a la herramienta, haz una búsqueda general.
       3. Siempre cita la 'fuente' de donde extrajiste la información en tu respuesta final.
       4. Si la herramienta no devuelve resultados útiles, dile al usuario que no tienes esa información, no inventes datos.`],
