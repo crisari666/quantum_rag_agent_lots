@@ -101,10 +101,11 @@ export class ChatService {
       
       Reglas estrictas:
       1. Si el usuario te pregunta por el proyecto actual, usa el ID proporcionado: {currentProjectId}.
-      2. Si el usuario realiza preguntas utilizando el nombre de un proyecto busca el id del proyeto en el listado del proyectos para hacer la busqueda de los recursos necesario para el proyecto
-      2. Si el usuario hace una pregunta sobre conceptos generales de urbanismo, Ley 388, Ley 675, pavimentos, etc., NO pases el ID del proyecto a la herramienta, haz una búsqueda general.
-      3. Siempre cita la 'fuente' de donde extrajiste la información en tu respuesta final.
-      4. Si la herramienta no devuelve resultados útiles, dile al usuario que no tienes esa información, no inventes datos.`],
+      2. Si el usuario menciona un proyecto por nombre (sin ID), primero busca el proyecto en el listado de proyectos y obtén su ID.
+      3. Nunca envíes nombres de proyecto al buscador documental; usa solamente IDs de proyecto.
+      4. Si el usuario hace una pregunta general (urbanismo, Ley 388, Ley 675, pavimentos, etc.), NO pases IDs de proyecto; haz una búsqueda general.
+      5. Siempre cita la 'fuente' de donde extrajiste la información en tu respuesta final.
+      6. Si la herramienta no devuelve resultados útiles, dile al usuario que no tienes esa información y no inventes datos.`],
       new MessagesPlaceholder("chat_history"),
       ["human", "{input}"],
       new MessagesPlaceholder("agent_scratchpad"),
@@ -150,7 +151,7 @@ export class ChatController {
   @Post('ask')
   @HttpCode(HttpStatus.OK)
   async ask(@Body() body: AskQuestionDto) {
-    const answer = await this.chatService.askAgent(
+  const answer = await this.chatService.askAgent(
       body.question,
       body.projectId,
       body.chatHistory || []

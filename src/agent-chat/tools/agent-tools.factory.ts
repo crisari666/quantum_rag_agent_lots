@@ -46,14 +46,15 @@ export function createSearchProjectDocumentsTool(
       description: `Search project documentation and unstructured content in the vector store.
 Use this for questions about contracts, credits, regulations, manuals, or qualitative descriptions.
 If projectIds are provided, search those projects plus GLOBAL knowledge.
-If projectIds are empty/omitted, search GLOBAL knowledge only.`,
+If projectIds are empty/omitted, search GLOBAL knowledge only.
+Important: projectIds must be project database IDs (not project names/titles).`,
       schema: z.object({
         question: z.string().describe('Natural language question to search for in documents'),
         projectIds: z
           .array(z.string())
           .optional()
           .describe(
-            'Optional project IDs for scoped search. When provided, the tool also includes GLOBAL knowledge.',
+            'Optional project database IDs for scoped search. Resolve IDs with list_projects first when user provides names. When provided, the tool also includes GLOBAL knowledge.',
           ),
         limit: z.number().min(1).max(20).optional().describe('Max number of document chunks to return'),
       }),
@@ -83,7 +84,7 @@ export function createSearchProjectsTool(
     {
       name: 'list_projects',
       description: `List enabled projects only (id, title, location, sell price).
-Use this first when the user asks about projects in general, features, or to get project IDs for filtering document search.`,
+Use this first when the user asks about projects in general, features, or mentions project names that must be resolved to IDs before document search.`,
       schema: z.object({}),
     },
   );

@@ -30,7 +30,10 @@ Rules:
 1. For general project features (e.g. climate, pool, prices), use 'list_projects' first.
 2. For contracts, credits, or qualitative descriptions, use 'search_project_documents'.
 3. For combined questions (e.g. "Projects with a pool that offer easy credit"), FIRST list or identify projects, get their IDs, THEN use those IDs in 'search_project_documents' to search documents.
-4. Always mention the project name and the source of your information.`;
+4. If the user gives a project name (but no ID), ALWAYS call 'list_projects' to resolve the project ID before calling 'search_project_documents'.
+5. Never send project titles/names to 'search_project_documents.projectIds'; pass IDs only.
+6. If no project can be resolved from the provided name, ask a short clarification question before searching documents.
+7. Always mention the project name and the source of your information.`;
 
 /**
  * Service that runs the LLM agent with tools to answer questions using projects and RAG documents.
