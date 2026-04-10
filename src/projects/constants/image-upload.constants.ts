@@ -1,5 +1,5 @@
 /** Maximum file size for image upload (5 MB). */
-export const MAX_IMAGE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 /** Maximum file size for project documents (20 MB). */
 export const MAX_DOCUMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 /** Maximum file size for project reel video (100 MB). */
