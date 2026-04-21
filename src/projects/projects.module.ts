@@ -19,6 +19,6 @@ import { ProjectDocumentUploadService } from './services/project-document-upload
     ProjectImageStorageService,
     ProjectDocumentUploadService,
   ],
-  exports: [ProjectsService],
+  exports: [ProjectsService, ImageCompressionService],
 })
 export class ProjectsModule {}
