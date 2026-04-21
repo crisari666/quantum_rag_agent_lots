@@ -9,6 +9,7 @@ import { RagAgentModule } from './rag-agent/rag-agent.module';
 import { AmenitiesModule } from './amenities/amenities.module';
 import { ProjectsModule } from './projects/projects.module';
 import { AgentChatModule } from './agent-chat/agent-chat.module';
+import { ProjectReleaseModule } from './project-release/project-release.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AgentChatModule } from './agent-chat/agent-chat.module';
     AmenitiesModule,
     ProjectsModule,
     AgentChatModule,
+    ProjectReleaseModule,
   ],
   controllers: [AppController],
   providers: [AppService, TokenJwtMiddleware],
