@@ -72,7 +72,7 @@ export class TokenJwtMiddleware implements NestMiddleware {
       pathname.length > 1 && pathname.endsWith('/')
         ? pathname.slice(0, -1)
         : pathname;
-    if (req.method === 'GET' && normalized === `${RAG_PREFIX}/projects`) {
+    if (req.method === 'GET' && (normalized === `${RAG_PREFIX}/projects` || normalized === `${RAG_PREFIX}/project-releases`)) {
       return true;
     }
     if (req.method === 'PATCH' && PATCH_PROJECT_UPDATE_REGEX.test(normalized)) {
