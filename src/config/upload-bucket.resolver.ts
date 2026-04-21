@@ -29,3 +29,16 @@ export function resolveProjectImagesUploadDir(
   }
   return resolve(resolveUploadsBucketAbsolutePath(), 'projects');
 }
+
+/**
+ * Absolute path for project release image files; honors UPLOAD_DIR when set (same as projects).
+ */
+export function resolveProjectReleaseImagesUploadDir(
+  configService: ConfigService,
+): string {
+  const configuredOverride = configService.get<string>(UPLOAD_DIR_ENV_KEY);
+  if (configuredOverride) {
+    return resolve(process.cwd(), configuredOverride);
+  }
+  return resolve(resolveUploadsBucketAbsolutePath(), 'project-releases');
+}
