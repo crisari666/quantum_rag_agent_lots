@@ -76,15 +76,24 @@ export function createSearchProjectsTool(
       }
       return projects
         .map((p) => {
-          const usd = (p as { priceSellUsd?: number }).priceSellUsd ?? 0;
-          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
+          const usd = p.priceSellUsd ?? 0;
+          const lotRows = (p.lotOptions ?? []).map((lo) => ({
+            area: lo.area,
+            price: lo.price,
+            priceUsd: lo.priceUsd ?? 0,
+          }));
+          const lotOptionsPart =
+            lotRows.length > 0
+              ? `, lotOptions: ${JSON.stringify(lotRows)}`
+              : ', lotOptions: []';
+          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD${lotOptionsPart}, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
         })
         .join('\n');
     },
     {
       name: 'list_projects',
-      description: `List enabled projects only (id, title, location, priceSell in COP and optional priceSellUsd in USD).
-Use this first when the user asks about projects in general, features, or mentions project names that must be resolved to IDs before document search.`,
+      description: `List enabled projects: id, title, location, priceSell (primary list price COP), optional priceSellUsd (list USD), lotOptions (array of {area, price COP, priceUsd}; empty lotOptions [] means only priceSell/priceSellUsd apply), amenities.
+Use this first for prices, lot sizes, project lists, or resolving names to IDs before document search.`,
       schema: z.object({}),
     },
   );

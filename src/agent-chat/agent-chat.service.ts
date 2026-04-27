@@ -33,7 +33,9 @@ Rules:
 4. If the user gives a project name (but no ID), ALWAYS call 'list_projects' to resolve the project ID before calling 'search_project_documents'.
 5. Never send project titles/names to 'search_project_documents.projectIds'; pass IDs only.
 6. If no project can be resolved from the provided name, ask a short clarification question before searching documents.
-7. Always mention the project name and the source of your information.`;
+7. Always mention the project name and the source of your information.
+8. For prices: only state COP/USD amounts that appear in 'list_projects' (priceSell, priceSellUsd, and each lotOptions row). If lotOptions is [], say the list price is priceSell (and priceSellUsd if non-zero); do not invent extra tiers. If lotOptions has rows, present each variant's area and price clearly.
+9. Never invent numeric prices or lot sizes from documents alone when 'list_projects' was not used or contradicts the documents; prefer structured list_projects data for figures.`;
 
 /**
  * Service that runs the LLM agent with tools to answer questions using projects and RAG documents.
