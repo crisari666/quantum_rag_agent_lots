@@ -108,12 +108,27 @@ export class UpdateProjectDto {
   @Type(() => Number)
   lng?: number;
 
-  @ApiPropertyOptional({ example: 1500000, minimum: 0 })
+  @ApiPropertyOptional({
+    example: 450_000_000,
+    minimum: 0,
+    description: 'Primary sale list price in COP.',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Type(() => Number)
   priceSell?: number;
+
+  @ApiPropertyOptional({
+    example: 115_000,
+    minimum: 0,
+    description: 'Optional parallel list price in USD.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  priceSellUsd?: number;
 
   @ApiPropertyOptional({
     example: 8,
@@ -144,7 +159,11 @@ export class UpdateProjectDto {
   @Type(() => Number)
   commissionPercentage?: number;
 
-  @ApiPropertyOptional({ example: 75000, minimum: 0 })
+  @ApiPropertyOptional({
+    example: 22_500_000,
+    minimum: 0,
+    description: 'Commission amount in COP.',
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)

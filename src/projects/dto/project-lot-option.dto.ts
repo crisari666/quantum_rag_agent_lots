@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, IsOptional, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -17,12 +17,23 @@ export class ProjectLotOptionDto {
   area: number;
 
   @ApiProperty({
-    example: 450000,
+    example: 400_000_000,
     minimum: 0,
-    description: 'Price for this lot option.',
+    description: 'Sale price for this lot option in COP.',
   })
   @IsNumber()
   @Min(0)
   @Type(() => Number)
   price: number;
+
+  @ApiPropertyOptional({
+    example: 98000,
+    minimum: 0,
+    description: 'Optional reference price for this lot option in USD.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  priceUsd?: number;
 }

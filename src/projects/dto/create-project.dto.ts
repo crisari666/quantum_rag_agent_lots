@@ -100,11 +100,27 @@ export class CreateProjectDto {
   @Type(() => Number)
   lng: number;
 
-  @ApiProperty({ example: 1500000, minimum: 0 })
+  @ApiProperty({
+    example: 450_000_000,
+    minimum: 0,
+    description: 'Primary sale list price in Colombian pesos (COP).',
+  })
   @IsNumber()
   @Min(0)
   @Type(() => Number)
   priceSell: number;
+
+  @ApiPropertyOptional({
+    example: 115_000,
+    minimum: 0,
+    description:
+      'Optional parallel list price in US dollars (USD) for the same project.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  priceSellUsd?: number;
 
   @ApiPropertyOptional({
     example: 8,
@@ -122,8 +138,8 @@ export class CreateProjectDto {
     type: [ProjectLotOptionDto],
     description: 'Lot size and price options buyers can choose from.',
     example: [
-      { area: 200, price: 450000 },
-      { area: 250, price: 520000 },
+      { area: 200, price: 400_000_000, priceUsd: 98000 },
+      { area: 250, price: 480_000_000, priceUsd: 118000 },
     ],
   })
   @IsOptional()
@@ -138,7 +154,11 @@ export class CreateProjectDto {
   @Type(() => Number)
   commissionPercentage: number;
 
-  @ApiProperty({ example: 75000, minimum: 0 })
+  @ApiProperty({
+    example: 22_500_000,
+    minimum: 0,
+    description: 'Commission amount in COP (typically priceSell * commissionPercentage / 100).',
+  })
   @IsNumber()
   @Min(0)
   @Type(() => Number)

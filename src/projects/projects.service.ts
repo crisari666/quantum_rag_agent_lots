@@ -8,6 +8,7 @@ import { Model, Types } from 'mongoose';
 import { Project, ProjectDocument } from './schemas/project.schema';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { ProjectLotOptionDto } from './dto/project-lot-option.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 import { ProjectDocumentField } from './types/project-document-field.type';
@@ -320,6 +321,19 @@ export class ProjectsService {
     }));
   }
 
+  private normalizeLotOptions(
+    rows: ProjectLotOptionDto[] | undefined,
+  ): ProjectLotOption[] {
+    if (!rows?.length) {
+      return [];
+    }
+    return rows.map((o) => ({
+      area: o.area,
+      price: o.price,
+      priceUsd: o.priceUsd ?? 0,
+    }));
+  }
+
   private normalizeProjectSlug(
     raw: string | undefined,
   ): string | undefined {
@@ -351,8 +365,9 @@ export class ProjectsService {
       lat: dto.lat,
       lng: dto.lng,
       priceSell: dto.priceSell,
+      priceSellUsd: dto.priceSellUsd ?? 0,
       separation: dto.separation ?? 0,
-      lotOptions: dto.lotOptions,
+      lotOptions: this.normalizeLotOptions(dto.lotOptions),
       commissionPercentage: dto.commissionPercentage,
       commissionValue: dto.commissionValue,
       amenities,
@@ -387,9 +402,12 @@ export class ProjectsService {
     if (dto.lat !== undefined) payload.lat = dto.lat;
     if (dto.lng !== undefined) payload.lng = dto.lng;
     if (dto.priceSell !== undefined) payload.priceSell = dto.priceSell;
+    if (dto.priceSellUsd !== undefined) {
+      payload.priceSellUsd = dto.priceSellUsd;
+    }
     if (dto.separation !== undefined) payload.separation = dto.separation;
     if (dto.lotOptions !== undefined) {
-      payload.lotOptions = dto.lotOptions;
+      payload.lotOptions = this.normalizeLotOptions(dto.lotOptions);
     }
     if (dto.commissionPercentage !== undefined) {
       payload.commissionPercentage = dto.commissionPercentage;

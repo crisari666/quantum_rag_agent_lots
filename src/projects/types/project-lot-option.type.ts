@@ -1,7 +1,8 @@
 /**
- * Single lot configuration: surface area and sale price for that option.
+ * Single lot configuration: area, COP sale `price`, optional USD reference `priceUsd`.
  */
 export type ProjectLotOption = Readonly<{
   area: number;
   price: number;
+  priceUsd?: number;
 }>;

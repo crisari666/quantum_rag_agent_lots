@@ -75,15 +75,15 @@ export function createSearchProjectsTool(
         return 'No projects found.';
       }
       return projects
-        .map(
-          (p) =>
-            `id: ${p._id}, title: ${p.title}, location: ${p.location}, priceSell: ${p.priceSell}, amenities: [${p.amenities.map(a => (a as any).title).join(', ')}]`,
-        )
+        .map((p) => {
+          const usd = (p as { priceSellUsd?: number }).priceSellUsd ?? 0;
+          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
+        })
         .join('\n');
     },
     {
       name: 'list_projects',
-      description: `List enabled projects only (id, title, location, sell price).
+      description: `List enabled projects only (id, title, location, priceSell in COP and optional priceSellUsd in USD).
 Use this first when the user asks about projects in general, features, or mentions project names that must be resolved to IDs before document search.`,
       schema: z.object({}),
     },

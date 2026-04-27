@@ -38,8 +38,16 @@ export class Project {
   @Prop({ required: true })
   lng: number;
 
+  /** Primary list / contract sale amount in Colombian pesos (COP). */
   @Prop({ required: true })
   priceSell: number;
+
+  /**
+   * Optional parallel list price in US dollars for marketing or export buyers.
+   * Independent of `priceSell` (COP); commission stays COP-based unless product changes.
+   */
+  @Prop({ default: 0 })
+  priceSellUsd: number;
 
   /**
    * Separation measure for the development (e.g. meters between lots); product-defined unit.
@@ -48,14 +56,27 @@ export class Project {
   separation: number;
 
   /**
-   * Available lot variants: area and price per option.
+   * Available lot variants: area, COP sale `price`, optional `priceUsd` reference.
    */
   @Prop({
     type: [
       {
         _id: false,
-        area: { type: Number, required: true },
-        price: { type: Number, required: true },
+        area: {
+          type: Number,
+          required: true,
+          comment: 'Lot size (e.g. m²); unit is product-defined.',
+        },
+        price: {
+          type: Number,
+          required: true,
+          comment: 'Sale amount in COP (same basis as project priceSell).',
+        },
+        priceUsd: {
+          type: Number,
+          default: 0,
+          comment: 'Optional reference amount in USD for this lot option.',
+        },
       },
     ],
     default: [],
@@ -68,6 +89,7 @@ export class Project {
   @Prop({ required: true })
   commissionPercentage: number;
 
+  /** Commission amount in COP (derived from `priceSell` and `commissionPercentage`). */
   @Prop({ required: true })
   commissionValue: number;
 
