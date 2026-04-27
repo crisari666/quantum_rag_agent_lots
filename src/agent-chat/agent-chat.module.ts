@@ -7,19 +7,25 @@ import {
   AgentChatMessage,
   AgentChatMessageSchema,
 } from './schemas/agent-chat-message.schema';
+import {
+  AgentChatGapLog,
+  AgentChatGapLogSchema,
+} from './schemas/agent-chat-gap-log.schema';
 import { RagAgentModule } from '../rag-agent/rag-agent.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { AgentChatGapLogService } from './agent-chat-gap-log.service';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: AgentChatMessage.name, schema: AgentChatMessageSchema },
+      { name: AgentChatGapLog.name, schema: AgentChatGapLogSchema },
     ]),
     RagAgentModule,
     ProjectsModule,
   ],
   controllers: [AgentChatController],
-  providers: [AgentChatService, AgentChatHistoryService],
-  exports: [AgentChatService, AgentChatHistoryService],
+  providers: [AgentChatService, AgentChatHistoryService, AgentChatGapLogService],
+  exports: [AgentChatService, AgentChatHistoryService, AgentChatGapLogService],
 })
 export class AgentChatModule {}

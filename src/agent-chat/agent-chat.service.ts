@@ -11,11 +11,22 @@ import {
 } from '@langchain/core/messages';
 import { RagAgentService } from '../rag-agent/rag-agent.service';
 import { ProjectsService } from '../projects/projects.service';
+import type { ProjectDocument } from '../projects/schemas/project.schema';
 import {
   createSearchProjectDocumentsTool,
   createSearchProjectsTool,
+  LIST_PROJECTS_EMPTY_TOOL_OUTPUT,
 } from './tools/agent-tools.factory';
-import type { AgentChatResult, ChatMessageInput } from './agent-chat.types';
+import {
+  buildAgentChatMediaFromProjects,
+  filterProjectsByQuestionKeywords,
+} from './agent-chat-media.builder';
+import {
+  AgentChatInformationGap,
+  type AgentChatResult,
+  type AgentChatMediaProject,
+  type ChatMessageInput,
+} from './agent-chat.types';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
 const OPENAI_API_KEY_ENV = 'OPENAI_API_KEY';
@@ -58,21 +69,38 @@ export class AgentChatService {
     chatHistory: ChatMessageInput[] = [],
   ): Promise<AgentChatResult> {
     const collectedSources = new Set<string>();
+    const informationGaps = new Set<AgentChatInformationGap>();
     const collectDocumentSources = (sources: readonly string[]): void => {
       for (const s of sources) {
         collectedSources.add(s);
       }
     };
+    const onDocumentSearchNoHits = (): void => {
+      informationGaps.add(AgentChatInformationGap.DOCUMENT_SEARCH_NO_HITS);
+    };
+    let lastListedProjects: readonly ProjectDocument[] | null = null;
     const tools: StructuredToolInterface[] = [
-      createSearchProjectsTool(this.projectsService),
+      createSearchProjectsTool(this.projectsService, (projects) => {
+        lastListedProjects = projects;
+      }),
       createSearchProjectDocumentsTool(
         this.ragAgentService,
         collectDocumentSources,
+        onDocumentSearchNoHits,
       ),
     ];
     const llm = this.createLlm();
     const modelWithTools = llm.bindTools(tools);
     const messages = this.buildMessages(question, chatHistory);
+    const resolveMedia = (): readonly AgentChatMediaProject[] => {
+      const list = lastListedProjects;
+      if (!list?.length) {
+        return [];
+      }
+      const narrowed = filterProjectsByQuestionKeywords([...list], question);
+      const forMedia = narrowed.length > 0 ? narrowed : [...list];
+      return buildAgentChatMediaFromProjects(forMedia);
+    };
     let currentMessages: BaseMessage[] = [...messages];
     let iterations = 0;
     while (iterations < MAX_AGENT_ITERATIONS) {
@@ -86,14 +114,24 @@ export class AgentChatService {
           typeof response.content === 'string'
             ? response.content
             : String(response.content ?? '');
-        const output = content.trim() || 'No response generated.';
+        const trimmed = content.trim();
+        if (trimmed.length === 0) {
+          informationGaps.add(AgentChatInformationGap.EMPTY_MODEL_OUTPUT);
+        }
+        const output = trimmed || 'No response generated.';
         return {
           output,
           sources: this.sortSources(collectedSources),
+          informationGaps: [...informationGaps],
+          media: resolveMedia(),
         };
       }
       currentMessages = [...currentMessages, response];
-      const toolResults = await this.runToolCalls(toolCalls, tools);
+      const toolResults = await this.runToolCalls(
+        toolCalls,
+        tools,
+        informationGaps,
+      );
       for (const { toolCallId, content } of toolResults) {
         currentMessages.push(
           new ToolMessage({
@@ -103,10 +141,13 @@ export class AgentChatService {
         );
       }
     }
+    informationGaps.add(AgentChatInformationGap.MAX_ITERATIONS);
     return {
       output:
         'Maximum agent iterations reached. Please try a simpler question.',
       sources: this.sortSources(collectedSources),
+      informationGaps: [...informationGaps],
+      media: resolveMedia(),
     };
   }
 
@@ -148,6 +189,7 @@ export class AgentChatService {
   private async runToolCalls(
     toolCalls: Array<{ id?: string; name: string; args: Record<string, unknown> }>,
     tools: StructuredToolInterface[],
+    informationGaps: Set<AgentChatInformationGap>,
   ): Promise<Array<{ toolCallId: string; content: string }>> {
     const results: Array<{ toolCallId: string; content: string }> = [];
     const toolMap = new Map(tools.map((t) => [t.name, t]));
@@ -162,6 +204,12 @@ export class AgentChatService {
           const output = await tool.invoke(tc.args);
           content =
             typeof output === 'string' ? output : JSON.stringify(output);
+          if (
+            tc.name === 'list_projects' &&
+            content === LIST_PROJECTS_EMPTY_TOOL_OUTPUT
+          ) {
+            informationGaps.add(AgentChatInformationGap.NO_ENABLED_PROJECTS);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           content = `Tool error: ${message}`;

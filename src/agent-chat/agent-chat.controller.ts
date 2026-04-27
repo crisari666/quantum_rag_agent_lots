@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   ParseUUIDPipe,
   Post,
@@ -17,6 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger'; 
+import { AgentChatGapLogService } from './agent-chat-gap-log.service';
 import { AgentChatHistoryService } from './agent-chat-history.service';
 import { AgentChatService } from './agent-chat.service';
 import { AskAgentDto } from './dto/ask-agent.dto';
@@ -25,9 +27,12 @@ import type { AgentChatHistoryApiMessage } from './types/agent-chat-history-api-
 @ApiTags('Agent Chat')
 @Controller('agent-chat')
 export class AgentChatController {
+  private readonly logger = new Logger(AgentChatController.name);
+
   public constructor(
     private readonly agentChatService: AgentChatService,
     private readonly agentChatHistoryService: AgentChatHistoryService,
+    private readonly agentChatGapLogService: AgentChatGapLogService,
   ) {}
 
   @Post('ask')
@@ -39,7 +44,7 @@ export class AgentChatController {
       'Agent answer plus unique document sources (URL or ingest path) when RAG was used.',
     schema: {
       type: 'object',
-      required: ['output', 'sources'],
+      required: ['output', 'sources', 'media'],
       properties: {
         output: {
           type: 'string',
@@ -50,6 +55,31 @@ export class AgentChatController {
           items: { type: 'string' },
           description:
             'Non-empty when the agent called document search; each entry is Weaviate `source` metadata (e.g. URL or upload path). Empty if only structured project listing was used.',
+        },
+        media: {
+          type: 'array',
+          description:
+            'When list_projects ran: projects with marketing files (images, horizontal images, videos, brochure, etc.). Client maps filenames to upload URLs.',
+          items: {
+            type: 'object',
+            required: ['projectId', 'title', 'location', 'files'],
+            properties: {
+              projectId: { type: 'string' },
+              title: { type: 'string' },
+              location: { type: 'string' },
+              files: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['kind', 'filename'],
+                  properties: {
+                    kind: { type: 'string' },
+                    filename: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
         },
         conversationId: {
           type: 'string',
@@ -70,17 +100,27 @@ export class AgentChatController {
             dto.conversationId,
           )
         : (dto.chatHistory ?? []);
-    const { output, sources } = await this.agentChatService.askQuestion(
-      dto.question,
-      historyForAgent,
-    );
+    const { output, sources, informationGaps, media } =
+      await this.agentChatService.askQuestion(dto.question, historyForAgent);
     await this.agentChatHistoryService.appendExchange({
       conversationId,
       question: dto.question,
       output,
       sources,
     });
-    return { output, sources, conversationId };
+    if (informationGaps.length > 0) {
+      await this.agentChatGapLogService.appendIfNeeded({
+        conversationId,
+        question: dto.question,
+        output,
+        sources,
+        reasons: informationGaps,
+      });
+      this.logger.warn(
+        `agent_chat_gap conversationId=${conversationId} reasons=${informationGaps.join(',')}`,
+      );
+    }
+    return { output, sources, media, conversationId };
   }
 
   @Get('conversations/:conversationId/messages')

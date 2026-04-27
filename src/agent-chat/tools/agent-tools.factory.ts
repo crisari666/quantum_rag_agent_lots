@@ -2,9 +2,13 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { RagAgentService } from '../../rag-agent/rag-agent.service';
 import type { ProjectsService } from '../../projects/projects.service';
+import type { ProjectDocument } from '../../projects/schemas/project.schema';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
 const DEFAULT_DOCUMENT_SEARCH_LIMIT = 5;
+
+/** Must match `list_projects` tool return when DB has no enabled projects. */
+export const LIST_PROJECTS_EMPTY_TOOL_OUTPUT = 'No projects found.' as const;
 
 /**
  * Marketing / gallery assets stored on the project (filenames; app serves under uploads).
@@ -31,13 +35,20 @@ function serializeProjectMedia(p: {
   return `, media: ${JSON.stringify(media)}`;
 }
 
+export type DocumentSearchNoHitsContext = {
+  readonly question: string;
+  readonly projectIds: readonly string[];
+};
+
 /**
  * Creates the tool to search project documents in Weaviate (RAG).
  * @param collectDocumentSources - Optional hook with unique non-empty source strings (URL or stored path) after each search.
+ * @param onDocumentSearchNoHits - Called when Weaviate returns zero chunks for this search.
  */
 export function createSearchProjectDocumentsTool(
   ragAgentService: RagAgentService,
   collectDocumentSources?: (sources: readonly string[]) => void,
+  onDocumentSearchNoHits?: (ctx: DocumentSearchNoHitsContext) => void,
 ): StructuredToolInterface {
   return tool(
     async (input) => {
@@ -47,6 +58,10 @@ export function createSearchProjectDocumentsTool(
         limit: input.limit ?? DEFAULT_DOCUMENT_SEARCH_LIMIT,
       });
       if (results.length === 0) {
+        onDocumentSearchNoHits?.({
+          question: input.question,
+          projectIds: input.projectIds ?? [],
+        });
         return 'No relevant documents found.';
       }
       if (collectDocumentSources) {
@@ -93,13 +108,15 @@ Important: projectIds must be project database IDs (not project names/titles).`,
  */
 export function createSearchProjectsTool(
   projectsService: ProjectsService,
+  onProjectsListed?: (projects: readonly ProjectDocument[]) => void,
 ): StructuredToolInterface {
   return tool(
     async () => {
       const projects = await projectsService.list('true');
       if (projects.length === 0) {
-        return 'No projects found.';
+        return LIST_PROJECTS_EMPTY_TOOL_OUTPUT;
       }
+      onProjectsListed?.(projects);
       return projects
         .map((p) => {
           const usd = p.priceSellUsd ?? 0;
