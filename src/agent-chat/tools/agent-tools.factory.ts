@@ -7,6 +7,31 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 const DEFAULT_DOCUMENT_SEARCH_LIMIT = 5;
 
 /**
+ * Marketing / gallery assets stored on the project (filenames; app serves under uploads).
+ * @see project.schema.ts images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure
+ */
+function serializeProjectMedia(p: {
+  readonly images?: readonly string[];
+  readonly cardProject?: string;
+  readonly horizontalImages?: readonly string[];
+  readonly verticalVideos?: readonly string[];
+  readonly reelVideo?: string;
+  readonly plane?: string;
+  readonly brochure?: string;
+}): string {
+  const media = {
+    images: [...(p.images ?? [])],
+    cardProject: (p.cardProject ?? '').trim(),
+    horizontalImages: [...(p.horizontalImages ?? [])],
+    verticalVideos: [...(p.verticalVideos ?? [])],
+    reelVideo: (p.reelVideo ?? '').trim(),
+    plane: (p.plane ?? '').trim(),
+    brochure: (p.brochure ?? '').trim(),
+  };
+  return `, media: ${JSON.stringify(media)}`;
+}
+
+/**
  * Creates the tool to search project documents in Weaviate (RAG).
  * @param collectDocumentSources - Optional hook with unique non-empty source strings (URL or stored path) after each search.
  */
@@ -45,6 +70,7 @@ export function createSearchProjectDocumentsTool(
       name: 'search_project_documents',
       description: `Search project documentation and unstructured content in the vector store.
 Use this for questions about contracts, credits, regulations, manuals, or qualitative descriptions.
+Not for listing project photos/videos/brochure/plano filenames—those come from list_projects.media.
 If projectIds are provided, search those projects plus GLOBAL knowledge.
 If projectIds are empty/omitted, search GLOBAL knowledge only.
 Important: projectIds must be project database IDs (not project names/titles).`,
@@ -86,14 +112,15 @@ export function createSearchProjectsTool(
             lotRows.length > 0
               ? `, lotOptions: ${JSON.stringify(lotRows)}`
               : ', lotOptions: []';
-          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD${lotOptionsPart}, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
+          const mediaPart = serializeProjectMedia(p);
+          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, city: ${(p.city ?? '').trim()}, country: ${(p.country ?? '').trim()}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD${lotOptionsPart}${mediaPart}, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
         })
         .join('\n');
     },
     {
       name: 'list_projects',
-      description: `List enabled projects: id, title, location, priceSell (primary list price COP), optional priceSellUsd (list USD), lotOptions (array of {area, price COP, priceUsd}; empty lotOptions [] means only priceSell/priceSellUsd apply), amenities.
-Use this first for prices, lot sizes, project lists, or resolving names to IDs before document search.`,
+      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideo, plane (floor plan file), brochure—all filenames/paths for marketing assets in the app, not RAG text chunks.
+Use this first for prices, lot sizes, photos/gallery/videos/brochure/plano requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search.`,
       schema: z.object({}),
     },
   );
