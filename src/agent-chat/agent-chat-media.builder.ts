@@ -52,15 +52,16 @@ function extractKeywords(question: string): string[] {
 
 /**
  * Narrows projects when the question contains place/product tokens (e.g. "Cartagena").
- * If no tokens match any project, returns empty so caller can fall back to all listed projects.
+ * Returns null when there are no extractable keywords (caller should not attach media).
+ * Returns [] when keywords exist but no project matches.
  */
 export function filterProjectsByQuestionKeywords(
   projects: readonly ProjectDocument[],
   question: string,
-): ProjectDocument[] {
+): ProjectDocument[] | null {
   const keywords = extractKeywords(question);
   if (keywords.length === 0) {
-    return [];
+    return null;
   }
   return projects.filter((p) => {
     const hay = normalizeForMatch(

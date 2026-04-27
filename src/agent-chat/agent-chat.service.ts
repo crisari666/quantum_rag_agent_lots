@@ -98,8 +98,10 @@ export class AgentChatService {
         return [];
       }
       const narrowed = filterProjectsByQuestionKeywords([...list], question);
-      const forMedia = narrowed.length > 0 ? narrowed : [...list];
-      return buildAgentChatMediaFromProjects(forMedia);
+      if (!narrowed?.length) {
+        return [];
+      }
+      return buildAgentChatMediaFromProjects(narrowed);
     };
     let currentMessages: BaseMessage[] = [...messages];
     let iterations = 0;

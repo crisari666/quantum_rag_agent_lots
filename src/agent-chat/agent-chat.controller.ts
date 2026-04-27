@@ -59,7 +59,7 @@ export class AgentChatController {
         media: {
           type: 'array',
           description:
-            'When list_projects ran: projects with marketing files (images, horizontal images, videos, brochure, etc.). Client maps filenames to upload URLs.',
+            'When list_projects ran and the question tokens match at least one project (title/location/slug/city): marketing files for those projects only. Empty when no keyword overlap so the payload stays aligned with the answer.',
           items: {
             type: 'object',
             required: ['projectId', 'title', 'location', 'files'],
