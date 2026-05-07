@@ -20,7 +20,11 @@ export type AgentChatMediaKind =
   | 'verticalVideo'
   | 'reelVideo'
   | 'plane'
-  | 'brochure';
+  | 'brochure'
+  | 'legalRut'
+  | 'legalBusinessRegistration'
+  | 'legalBankCertificate'
+  | 'legalLibertarianCertificate';
 
 export interface AgentChatMediaFile {
   readonly kind: AgentChatMediaKind;
@@ -116,6 +120,15 @@ export function buildAgentChatMediaFromProjects(
     pushFile(files, total, 'reelVideo', p.reelVideo);
     pushFile(files, total, 'plane', p.plane);
     pushFile(files, total, 'brochure', p.brochure);
+    pushFile(files, total, 'legalRut', p.legalRut);
+    pushFile(files, total, 'legalBusinessRegistration', p.legalBusinessRegistration);
+    pushFile(files, total, 'legalBankCertificate', p.legalBankCertificate);
+    pushFile(
+      files,
+      total,
+      'legalLibertarianCertificate',
+      p.legalLibertarianCertificate,
+    );
     if (files.length === 0) {
       continue;
     }

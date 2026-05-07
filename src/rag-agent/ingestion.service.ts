@@ -7,6 +7,13 @@ import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Filters, type Properties } from 'weaviate-client';
 import { PDFParse } from 'pdf-parse';
+import * as mammoth from 'mammoth';
+import { Types } from 'mongoose';
+import { ProjectsService } from '../projects/projects.service';
+import {
+  isLegalRagIngestionDocType,
+  projectFieldForLegalRagDocType,
+} from '../projects/types/legal-rag-document-field.type';
 import { WeaviateService } from './weaviate.service';
 import {
   IngestionParams,
@@ -44,6 +51,7 @@ export class IngestionService {
   public constructor(
     private readonly weaviateService: WeaviateService,
     private readonly configService: ConfigService,
+    private readonly projectsService: ProjectsService,
   ) {}
 
   /**
@@ -79,6 +87,11 @@ export class IngestionService {
       indexName: this.weaviateService.indexName,
       textKey: 'text',
     });
+    await this.syncProjectLegalDocumentIfApplicable(
+      params.projectId,
+      params.docType,
+      params.source,
+    );
     return {
       message: 'Document vectorized successfully',
       chunks: documents.length,
@@ -176,6 +189,11 @@ export class IngestionService {
       indexName: this.weaviateService.indexName,
       textKey: 'text',
     });
+    await this.syncProjectLegalDocumentIfApplicable(
+      params.projectId,
+      targetDocType,
+      source,
+    );
     return {
       message: 'Document updated successfully',
       chunks: documents.length,
@@ -256,18 +274,44 @@ export class IngestionService {
         params.projectId,
         params.docType,
       );
-      const textFromFile = await this.extractTextFromFile(params.file);
+      if (this.isImageOrVideoFile(params.file)) {
+        if (!hasRawText) {
+          throw new BadRequestException(
+            'rawText is required for image or video file uploads.',
+          );
+        }
+        return { rawText: trimmedRaw, source: fileName };
+      }
+      if (this.isPdfFile(params.file)) {
+        const textFromFile = await this.extractTextFromPdf(params.file.buffer);
+        return { rawText: textFromFile, source: fileName };
+      }
+      if (this.isWordDocxFile(params.file)) {
+        const textFromFile = await this.extractTextFromDocx(params.file.buffer);
+        return { rawText: textFromFile, source: fileName };
+      }
+      if (this.isLegacyWordDocFile(params.file)) {
+        throw new BadRequestException(
+          'Legacy .doc is not supported. Upload .docx or PDF.',
+        );
+      }
+      const mimetype = params.file.mimetype?.toLowerCase() ?? '';
+      const isTextMimeType =
+        mimetype.startsWith(SUPPORTED_TEXT_MIME_PREFIX) ||
+        SUPPORTED_TEXT_MIME_TYPES.includes(mimetype);
+      if (!isTextMimeType) {
+        throw new BadRequestException(
+          'Unsupported uploaded file type for ingestion. Upload PDF, .docx, text-based files, image/video (with rawText), or use externalUrl/rawText.',
+        );
+      }
+      const textFromFile = params.file.buffer.toString('utf-8').trim();
+      if (!textFromFile) {
+        throw new BadRequestException('Uploaded file content is empty.');
+      }
       const combinedRawText = hasRawText
         ? `${trimmedRaw}\n\n${textFromFile}`
         : textFromFile;
-      const vendorSource =
-        params.source?.trim() ||
-        params.file.originalname ||
-        'uploaded-file';
-      return {
-        rawText: combinedRawText,
-        source: fileName,
-      };
+      return { rawText: combinedRawText, source: fileName };
     }
     if (hasRawText) {
       return {
@@ -345,6 +389,76 @@ export class IngestionService {
     return name.endsWith('.pdf');
   }
 
+  private isImageOrVideoFile(file: Express.Multer.File): boolean {
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    return mime.startsWith('image/') || mime.startsWith('video/');
+  }
+
+  private isWordDocxFile(file: Express.Multer.File): boolean {
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    if (
+      mime ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      return true;
+    }
+    const name = file.originalname?.toLowerCase() ?? '';
+    return name.endsWith('.docx');
+  }
+
+  private isLegacyWordDocFile(file: Express.Multer.File): boolean {
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    if (mime === 'application/msword') {
+      return true;
+    }
+    const name = file.originalname?.toLowerCase() ?? '';
+    return name.endsWith('.doc') && !name.endsWith('.docx');
+  }
+
+  private async extractTextFromDocx(buffer: Buffer): Promise<string> {
+    try {
+      const result = await mammoth.extractRawText({ buffer });
+      const text = result.value.trim();
+      if (!text) {
+        throw new BadRequestException(
+          'Word document text extraction returned empty content.',
+        );
+      }
+      return text;
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      const message =
+        err instanceof Error ? err.message : 'Unknown Word parse error';
+      throw new BadRequestException(`Could not parse Word document: ${message}`);
+    }
+  }
+
+  private async syncProjectLegalDocumentIfApplicable(
+    projectId: string,
+    docType: string,
+    source: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(projectId)) {
+      return;
+    }
+    const src = source?.trim() ?? '';
+    if (
+      !isLegalRagIngestionDocType(docType) ||
+      !src ||
+      src === INGESTION_FALLBACK_SOURCE_RAW_TEXT
+    ) {
+      return;
+    }
+    const field = projectFieldForLegalRagDocType(docType);
+    await this.projectsService.setRagIngestedLegalDocumentField(
+      projectId,
+      field,
+      src,
+    );
+  }
+
   private async extractTextFromPdf(buffer: Buffer): Promise<string> {
     const parser = new PDFParse({ data: buffer });
     try {
@@ -366,28 +480,6 @@ export class IngestionService {
     } finally {
       await parser.destroy().catch(() => undefined);
     }
-  }
-
-  private async extractTextFromFile(
-    file: Express.Multer.File,
-  ): Promise<string> {
-    if (this.isPdfFile(file)) {
-      return this.extractTextFromPdf(file.buffer);
-    }
-    const mimetype = file.mimetype?.toLowerCase() ?? '';
-    const isTextMimeType =
-      mimetype.startsWith(SUPPORTED_TEXT_MIME_PREFIX) ||
-      SUPPORTED_TEXT_MIME_TYPES.includes(mimetype);
-    if (!isTextMimeType) {
-      throw new BadRequestException(
-        'Unsupported uploaded file type for ingestion. Upload PDF, text-based files, or use externalUrl/rawText.',
-      );
-    }
-    const text = file.buffer.toString('utf-8').trim();
-    if (!text) {
-      throw new BadRequestException('Uploaded file content is empty.');
-    }
-    return text;
   }
 
   private async fetchTextFromExternalUrl(externalUrl: string): Promise<string> {

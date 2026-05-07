@@ -136,6 +136,19 @@ export class Project {
   @Prop({ trim: true, default: '' })
   brochure: string;
 
+  /** RAG-ingested legal doc filename under uploads/rag (Weaviate source). */
+  @Prop({ trim: true, default: '' })
+  legalRut: string;
+
+  @Prop({ trim: true, default: '' })
+  legalBusinessRegistration: string;
+
+  @Prop({ trim: true, default: '' })
+  legalBankCertificate: string;
+
+  @Prop({ trim: true, default: '' })
+  legalLibertarianCertificate: string;
+
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

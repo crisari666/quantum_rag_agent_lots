@@ -90,7 +90,6 @@ export class IngestionController {
     @Body() dto: IngestDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    console.log({file})
     this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
     return this.ingestionService.ingestDocumentFromSource({
       projectId: dto.projectId,
@@ -227,7 +226,6 @@ export class IngestionController {
     @Body() dto: UpdateIngestedDocumentDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    console.log({file})
     this.validateAtLeastOneInputSource(dto.rawText, dto.externalUrl, file);
     return this.ingestionService.updateIngestedDocumentFromSource({
       projectId: dto.projectId,

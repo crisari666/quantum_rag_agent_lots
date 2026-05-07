@@ -12,6 +12,7 @@ import { ProjectLotOptionDto } from './dto/project-lot-option.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
 import { ProjectDocumentField } from './types/project-document-field.type';
+import type { ProjectLegalRagDocumentField } from './types/legal-rag-document-field.type';
 import { ProjectAmenityGroup } from './types/project-amenity-group.type';
 import { ProjectLotOption } from './types/project-lot-option.type';
 
@@ -379,6 +380,10 @@ export class ProjectsService {
       reelVideo: '',
       plane: '',
       brochure: '',
+      legalRut: '',
+      legalBusinessRegistration: '',
+      legalBankCertificate: '',
+      legalLibertarianCertificate: '',
       deleted: false,
     };
   }
@@ -431,7 +436,41 @@ export class ProjectsService {
       payload.horizontalImages = dto.horizontalImages;
     }
     if (dto.verticalVideos !== undefined) payload.verticalVideos = dto.verticalVideos;
+    if (dto.legalRut !== undefined) payload.legalRut = dto.legalRut;
+    if (dto.legalBusinessRegistration !== undefined) {
+      payload.legalBusinessRegistration = dto.legalBusinessRegistration;
+    }
+    if (dto.legalBankCertificate !== undefined) {
+      payload.legalBankCertificate = dto.legalBankCertificate;
+    }
+    if (dto.legalLibertarianCertificate !== undefined) {
+      payload.legalLibertarianCertificate = dto.legalLibertarianCertificate;
+    }
     return payload;
+  }
+
+  /**
+   * Sets a legal RAG-ingested document filename on the project. Does not delete prior files from disk (rag bucket).
+   */
+  public async setRagIngestedLegalDocumentField(
+    projectId: string,
+    field: ProjectLegalRagDocumentField,
+    fileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const updated = await this.projectModel
+      .findByIdAndUpdate(projectId, { [field]: fileName }, { new: true })
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
   }
 
   /**

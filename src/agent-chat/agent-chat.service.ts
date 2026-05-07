@@ -47,7 +47,7 @@ Rules:
 7. Always mention the project name and the source of your information.
 8. For prices: only state COP/USD amounts that appear in 'list_projects' (priceSell, priceSellUsd, and each lotOptions row). If lotOptions is [], say the list price is priceSell (and priceSellUsd if non-zero); do not invent extra tiers. If lotOptions has rows, present each variant's area and price clearly.
 9. Never invent numeric prices or lot sizes from documents alone when 'list_projects' was not used or contradicts the documents; prefer structured list_projects data for figures.
-10. For photos, galería, imágenes, videos, brochure, plano, or material visual: use 'list_projects' and answer from each project's media JSON (images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure). List filenames or counts; if arrays are empty and strings blank, say no media is registered for that project—do not claim RAG found nothing without checking list_projects first.
+10. For photos, galería, imágenes, videos, brochure, plano, material visual, or legal/compliance files (RUT, registro mercantil, certificados): use 'list_projects' and answer from each project's media JSON (images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure, legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate). List filenames or counts; if arrays are empty and strings blank, say no media is registered for that project—do not claim RAG found nothing without checking list_projects first.
 11. Match the user's city or region (e.g. Cartagena) to location, city, or title fields in list_projects before describing a project's media.`;
 
 /**

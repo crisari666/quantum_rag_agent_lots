@@ -12,7 +12,7 @@ export const LIST_PROJECTS_EMPTY_TOOL_OUTPUT = 'No projects found.' as const;
 
 /**
  * Marketing / gallery assets stored on the project (filenames; app serves under uploads).
- * @see project.schema.ts images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure
+ * @see project.schema.ts images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure, legal* RAG filenames
  */
 function serializeProjectMedia(p: {
   readonly images?: readonly string[];
@@ -22,6 +22,10 @@ function serializeProjectMedia(p: {
   readonly reelVideo?: string;
   readonly plane?: string;
   readonly brochure?: string;
+  readonly legalRut?: string;
+  readonly legalBusinessRegistration?: string;
+  readonly legalBankCertificate?: string;
+  readonly legalLibertarianCertificate?: string;
 }): string {
   const media = {
     images: [...(p.images ?? [])],
@@ -31,6 +35,10 @@ function serializeProjectMedia(p: {
     reelVideo: (p.reelVideo ?? '').trim(),
     plane: (p.plane ?? '').trim(),
     brochure: (p.brochure ?? '').trim(),
+    legalRut: (p.legalRut ?? '').trim(),
+    legalBusinessRegistration: (p.legalBusinessRegistration ?? '').trim(),
+    legalBankCertificate: (p.legalBankCertificate ?? '').trim(),
+    legalLibertarianCertificate: (p.legalLibertarianCertificate ?? '').trim(),
   };
   return `, media: ${JSON.stringify(media)}`;
 }
@@ -85,7 +93,7 @@ export function createSearchProjectDocumentsTool(
       name: 'search_project_documents',
       description: `Search project documentation and unstructured content in the vector store.
 Use this for questions about contracts, credits, regulations, manuals, or qualitative descriptions.
-Not for listing project photos/videos/brochure/plano filenames—those come from list_projects.media.
+Not for listing project photos/videos/brochure/plano/legal document filenames—those come from list_projects.media.
 If projectIds are provided, search those projects plus GLOBAL knowledge.
 If projectIds are empty/omitted, search GLOBAL knowledge only.
 Important: projectIds must be project database IDs (not project names/titles).`,
@@ -136,8 +144,8 @@ export function createSearchProjectsTool(
     },
     {
       name: 'list_projects',
-      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideo, plane (floor plan file), brochure—all filenames/paths for marketing assets in the app, not RAG text chunks.
-Use this first for prices, lot sizes, photos/gallery/videos/brochure/plano requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search.`,
+      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideo, plane (floor plan file), brochure, plus legalRag filenames legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate (stored under uploads/rag from ingestion)—marketing and compliance file references, not RAG text chunks.
+Use this first for prices, lot sizes, photos/gallery/videos/brochure/plano/legal-doc requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search.`,
       schema: z.object({}),
     },
   );

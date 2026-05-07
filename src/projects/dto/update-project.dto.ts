@@ -17,6 +17,7 @@ import {
   MAX_PROJECT_SLUG_LENGTH,
   PROJECT_SLUG_REGEX,
 } from '../constants/project-slug.constants';
+import { MAX_LEGAL_RAG_DOC_FILENAME_LENGTH } from '../types/legal-rag-document-field.type';
 import { ProjectAmenityGroupDto } from './project-amenity-group.dto';
 import { ProjectLotOptionDto } from './project-lot-option.dto';
 
@@ -222,4 +223,44 @@ export class UpdateProjectDto {
   @IsArray()
   @IsUrl({}, { each: true })
   verticalVideos?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'RUT legal document: filename under uploads/rag (from RAG ingestion). Empty string clears.',
+    maxLength: MAX_LEGAL_RAG_DOC_FILENAME_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LEGAL_RAG_DOC_FILENAME_LENGTH)
+  legalRut?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Business registration document filename under uploads/rag. Empty string clears.',
+    maxLength: MAX_LEGAL_RAG_DOC_FILENAME_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LEGAL_RAG_DOC_FILENAME_LENGTH)
+  legalBusinessRegistration?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Bank certificate document filename under uploads/rag. Empty string clears.',
+    maxLength: MAX_LEGAL_RAG_DOC_FILENAME_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LEGAL_RAG_DOC_FILENAME_LENGTH)
+  legalBankCertificate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Libertarian / freedom of encumbrance certificate filename under uploads/rag. Empty string clears.',
+    maxLength: MAX_LEGAL_RAG_DOC_FILENAME_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LEGAL_RAG_DOC_FILENAME_LENGTH)
+  legalLibertarianCertificate?: string;
 }
