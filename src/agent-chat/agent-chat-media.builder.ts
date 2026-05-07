@@ -87,6 +87,38 @@ function pushFile(
   total.n += 1;
 }
 
+export function buildLegalComplianceMediaFromProjects(
+  projects: readonly ProjectDocument[] | null | undefined,
+): readonly AgentChatMediaProject[] {
+  if (!projects?.length) {
+    return [];
+  }
+  const out: AgentChatMediaProject[] = [];
+  const total = { n: 0 };
+  for (const p of projects) {
+    const files: AgentChatMediaFile[] = [];
+    pushFile(files, total, 'legalRut', p.legalRut);
+    pushFile(files, total, 'legalBusinessRegistration', p.legalBusinessRegistration);
+    pushFile(files, total, 'legalBankCertificate', p.legalBankCertificate);
+    pushFile(
+      files,
+      total,
+      'legalLibertarianCertificate',
+      p.legalLibertarianCertificate,
+    );
+    if (files.length === 0) {
+      continue;
+    }
+    out.push({
+      projectId: String(p._id),
+      title: p.title,
+      location: p.location ?? '',
+      files,
+    });
+  }
+  return out;
+}
+
 export function buildAgentChatMediaFromProjects(
   projects: readonly ProjectDocument[] | null | undefined,
 ): readonly AgentChatMediaProject[] {

@@ -19,6 +19,7 @@ import {
 } from './tools/agent-tools.factory';
 import {
   buildAgentChatMediaFromProjects,
+  buildLegalComplianceMediaFromProjects,
   filterProjectsByQuestionKeywords,
 } from './agent-chat-media.builder';
 import {
@@ -33,6 +34,12 @@ const OPENAI_API_KEY_ENV = 'OPENAI_API_KEY';
 const DEFAULT_MODEL_NAME = 'gpt-4o';
 const DEFAULT_TEMPERATURE = 0;
 const MAX_AGENT_ITERATIONS = 10;
+
+const LEGAL_COMPLIANCE_MEDIA_HINT =
+  /\b(rut|registro\s+mercantil|certificad|mercantil|bancario|libertarian|cumplimiento|documentos?\s+legales?|recursos?\s+legales?|documento\s+legal|archivos?\s+legales?|archivos?\s+legal)\b/i;
+
+const MARKETING_OR_GALLERY_MEDIA_HINT =
+  /\b(foto|fotos|imagen|imagenes|imágenes|images|galería|galeria|gallery|video|videos|plano|brochure|brochures|render|card|horizontal)\b/i;
 
 const SYSTEM_PROMPT = `You are the expert sales assistant for the construction company (parcelization / lots).
 Your goal is to combine structured data (database: projects) with unstructured data (documents) to answer the sales team accurately.
@@ -98,10 +105,18 @@ export class AgentChatService {
         return [];
       }
       const narrowed = filterProjectsByQuestionKeywords([...list], question);
-      if (!narrowed?.length) {
-        return [];
+      const legalHint = LEGAL_COMPLIANCE_MEDIA_HINT.test(question);
+      const galleryHint = MARKETING_OR_GALLERY_MEDIA_HINT.test(question);
+      if (narrowed !== null && narrowed.length > 0) {
+        if (legalHint && !galleryHint) {
+          return buildLegalComplianceMediaFromProjects(narrowed);
+        }
+        return buildAgentChatMediaFromProjects(narrowed);
       }
-      return buildAgentChatMediaFromProjects(narrowed);
+      if (legalHint) {
+        return buildLegalComplianceMediaFromProjects([...list]);
+      }
+      return [];
     };
     let currentMessages: BaseMessage[] = [...messages];
     let iterations = 0;
