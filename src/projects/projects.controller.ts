@@ -261,30 +261,118 @@ export class ProjectsController {
       required: ['file'],
     },
   })
-  @ApiResponse({ status: 201, description: 'Reel video uploaded and assigned.' })
+  @ApiResponse({ status: 201, description: 'Reel video uploaded and appended to reelVideos.' })
   @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
   @ApiResponse({ status: 404, description: 'Project not found.' })
-  public uploadProjectReelVideo(
+  public async uploadProjectReelVideo(
     @Param('id') projectId: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.projectDocumentUploadService.uploadDocument({
-      projectId,
-      file,
-      field: 'reelVideo',
-      fileType: 'reel_video',
-    });
+    if (!file?.buffer) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const extension = this.resolveUploadedFileExtension(file);
+    const fileName = this.projectImageStorageService.buildReelVideoFileName(
+      project.title,
+      extension,
+    );
+    await this.projectImageStorageService.saveFile(file.buffer, fileName);
+    const updatedProject = await this.projectsService.addReelVideo(projectId, fileName);
+    return {
+      message: 'Reel video uploaded successfully',
+      fileName,
+      project: updatedProject,
+    };
   }
 
   @Delete(':id/reel-video')
-  @ApiOperation({ summary: 'Remove reel video and delete file from storage' })
+  @ApiOperation({ summary: 'Remove all reel videos and delete files from storage' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
-  @ApiResponse({ status: 200, description: 'Reel cleared or was already empty; returns updated project.' })
+  @ApiResponse({ status: 200, description: 'Reel videos cleared or were already empty; returns updated project.' })
   @ApiResponse({ status: 404, description: 'Project not found.' })
   public async removeProjectReelVideo(@Param('id') projectId: string) {
     const project = await this.projectsService.clearReelVideo(projectId);
     return {
+      message: 'Reel videos removed successfully',
+      project,
+    };
+  }
+
+  @Post(':id/reel-videos/multiple')
+  @UseInterceptors(
+    FilesInterceptor('files', 20, {
+      limits: { fileSize: MAX_REEL_VIDEO_FILE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        const isAllowed = (ALLOWED_REEL_VIDEO_MIME_TYPES as readonly string[]).includes(file.mimetype);
+        if (isAllowed) callback(null, true);
+        else callback(new BadRequestException('Invalid reel video type. Allowed: mp4, webm, mov, avi'), false);
+      },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload multiple reel videos for a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Reel video files',
+        },
+      },
+      required: ['files'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Reel videos uploaded and added to reelVideos.' })
+  @ApiResponse({ status: 400, description: 'Invalid file or validation failed.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public async uploadProjectReelVideos(
+    @Param('id') projectId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) {
+      throw new BadRequestException('No files uploaded');
+    }
+    const project = await this.projectsService.getById(projectId);
+    const videoNames: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const extension = this.resolveUploadedFileExtension(file);
+      const videoName = this.projectImageStorageService.buildReelVideoFileName(
+        project.title,
+        extension,
+        index,
+      );
+      await this.projectImageStorageService.saveFile(file.buffer, videoName);
+      videoNames.push(videoName);
+    }
+    const updatedProject = await this.projectsService.addReelVideos(projectId, videoNames);
+    return {
+      message: 'Reel videos uploaded successfully',
+      videoNames,
+      project: updatedProject,
+    };
+  }
+
+  @Delete(':id/reel-videos/:videoName')
+  @ApiOperation({ summary: 'Remove a reel video from a project' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({
+    name: 'videoName',
+    description: 'Reel video filename (e.g. reel_video_project_1709452800000.mp4)',
+  })
+  @ApiResponse({ status: 200, description: 'Reel video removed; returns updated project.' })
+  @ApiResponse({ status: 404, description: 'Project or video not found.' })
+  public async removeProjectReelVideoByName(
+    @Param('id') projectId: string,
+    @Param('videoName') videoName: string,
+  ) {
+    const project = await this.projectsService.removeReelVideo(projectId, videoName);
+    return {
       message: 'Reel video removed successfully',
+      videoName,
       project,
     };
   }

@@ -60,6 +60,20 @@ export class ProjectImageStorageService {
   }
 
   /**
+   * Builds a unique filename for reel video uploads.
+   */
+  public buildReelVideoFileName(
+    projectName: string,
+    extension: string,
+    index = 0,
+  ): string {
+    const normalizedProjectName = this.normalizeProjectName(projectName);
+    const timestamp = Date.now();
+    const suffix = index > 0 ? `_${index}` : '';
+    return `reel_video_${normalizedProjectName}_${timestamp}${suffix}.${extension}`;
+  }
+
+  /**
    * Ensures the upload directory exists and writes the buffer to a file.
    * Returns the filename (not full path) for storing in the project.
    */

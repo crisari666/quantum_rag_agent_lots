@@ -127,6 +127,11 @@ export class Project {
   @Prop({ type: [String], default: [] })
   verticalVideos: string[];
 
+  /** Reel / short-form promotional video filenames. */
+  @Prop({ type: [String], default: [] })
+  reelVideos: string[];
+
+  /** @deprecated Use reelVideos; kept for legacy documents. */
   @Prop({ trim: true, default: '' })
   reelVideo: string;
 

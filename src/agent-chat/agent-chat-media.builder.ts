@@ -148,8 +148,19 @@ export function buildAgentChatMediaFromProjects(
         typeof v === 'string' ? v : String(v),
       );
     }
+    for (const v of p.reelVideos ?? []) {
+      pushFile(
+        files,
+        total,
+        'reelVideo',
+        typeof v === 'string' ? v : String(v),
+      );
+    }
+    const legacyReel = (p.reelVideo ?? '').trim();
+    if (legacyReel && !(p.reelVideos ?? []).includes(legacyReel)) {
+      pushFile(files, total, 'reelVideo', legacyReel);
+    }
     pushFile(files, total, 'cardProject', p.cardProject);
-    pushFile(files, total, 'reelVideo', p.reelVideo);
     pushFile(files, total, 'plane', p.plane);
     pushFile(files, total, 'brochure', p.brochure);
     pushFile(files, total, 'legalRut', p.legalRut);

@@ -26,6 +26,7 @@ const DOWNLOADABLE_PROJECT_ATTRIBUTES: readonly ProjectDownloadAttribute[] = [
   'brochure',
   'plane',
   'reelVideo',
+  'reelVideos',
   'cardProject',
   'verticalVideos',
 ] as const;
@@ -57,7 +58,7 @@ export class ProjectsResourceDownloadController {
     name: 'fileName',
     required: false,
     description:
-      'Required only when attribute=verticalVideos. Must match one value in project.verticalVideos',
+      'Required when attribute=verticalVideos or attribute=reelVideos. Must match one value in the project array.',
   })
   @ApiResponse({ status: 200, description: 'Binary file stream.' })
   @ApiResponse({
@@ -157,27 +158,35 @@ export class ProjectsResourceDownloadController {
       brochure?: string;
       plane?: string;
       reelVideo?: string;
+      reelVideos?: string[];
       cardProject?: string;
       verticalVideos?: string[];
     },
     attribute: ProjectDownloadAttribute,
     fileNameQuery?: string,
   ): string {
-    if (attribute === 'verticalVideos') {
+    if (attribute === 'verticalVideos' || attribute === 'reelVideos') {
       const normalizedFileName = String(fileNameQuery ?? '').trim();
       if (!normalizedFileName) {
         throw new BadRequestException(
-          'Query parameter "fileName" is required when attribute is "verticalVideos".',
+          `Query parameter "fileName" is required when attribute is "${attribute}".`,
         );
       }
-      const verticalVideos = project.verticalVideos ?? [];
-      const hasFile = verticalVideos.includes(normalizedFileName);
+      const fileNames =
+        attribute === 'verticalVideos'
+          ? (project.verticalVideos ?? [])
+          : this.projectsService.resolveReelVideos(project);
+      const hasFile = fileNames.includes(normalizedFileName);
       if (!hasFile) {
         throw new NotFoundException(
-          `Vertical video "${normalizedFileName}" was not found in this project`,
+          `${attribute === 'verticalVideos' ? 'Vertical' : 'Reel'} video "${normalizedFileName}" was not found in this project`,
         );
       }
       return normalizedFileName;
+    }
+    if (attribute === 'reelVideo') {
+      const reelVideos = this.projectsService.resolveReelVideos(project);
+      return reelVideos[0] ?? String(project.reelVideo ?? '').trim();
     }
     return String(project[attribute] ?? '').trim();
   }

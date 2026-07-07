@@ -231,4 +231,14 @@ export class CreateProjectDto {
   @IsUrl({}, { each: true })
   verticalVideos?: string[];
 
+  @ApiPropertyOptional({
+    description: 'Reel video filenames',
+    example: ['reel_video_project_1709452800000.mp4'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  reelVideos?: string[];
+
 }

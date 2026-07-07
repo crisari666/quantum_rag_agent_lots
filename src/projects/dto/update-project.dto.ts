@@ -225,6 +225,15 @@ export class UpdateProjectDto {
   verticalVideos?: string[];
 
   @ApiPropertyOptional({
+    description: 'Reel video filenames',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  reelVideos?: string[];
+
+  @ApiPropertyOptional({
     description:
       'RUT legal document: filename under uploads/rag (from RAG ingestion). Empty string clears.',
     maxLength: MAX_LEGAL_RAG_DOC_FILENAME_LENGTH,

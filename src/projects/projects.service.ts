@@ -78,11 +78,12 @@ export class ProjectsService {
     } else if (enableFilter === 'false') {
       filter.enabled = false;
     }
-    return this.projectModel
+    const projects = await this.projectModel
       .find(filter)
       .populate('amenities', 'title')
       .sort({ createdAt: -1 })
       .exec();
+    return projects.map((project) => this.enrichProjectReelVideos(project));
   }
 
   /**
@@ -114,6 +115,25 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException(`Project with id ${id} not found`);
     }
+    return this.enrichProjectReelVideos(project);
+  }
+
+  /**
+   * Resolves reel video filenames, falling back to legacy single reelVideo field.
+   */
+  public resolveReelVideos(
+    project: { reelVideos?: string[]; reelVideo?: string },
+  ): string[] {
+    const fromArray = (project.reelVideos ?? []).map((name) => String(name).trim()).filter(Boolean);
+    if (fromArray.length > 0) {
+      return fromArray;
+    }
+    const legacy = (project.reelVideo ?? '').trim();
+    return legacy ? [legacy] : [];
+  }
+
+  public enrichProjectReelVideos<T extends ProjectDocument>(project: T): T {
+    project.reelVideos = this.resolveReelVideos(project);
     return project;
   }
 
@@ -272,10 +292,31 @@ export class ProjectsService {
   }
 
   /**
-   * Clears the reel video field and deletes the file from storage when present.
+   * Clears all reel videos and deletes stored files when present.
    */
   public async clearReelVideo(projectId: string): Promise<ProjectDocument> {
-    return this.clearDocumentField(projectId, 'reelVideo');
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const fileNames = new Set(this.resolveReelVideos(project));
+    for (const fileName of fileNames) {
+      await this.projectImageStorageService.deleteFile(fileName);
+    }
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { reelVideos: [], reelVideo: '' },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return this.enrichProjectReelVideos(updated);
   }
 
   /**
@@ -377,6 +418,7 @@ export class ProjectsService {
       cardProject: dto.cardProject ?? '',
       horizontalImages: dto.horizontalImages ?? [],
       verticalVideos: dto.verticalVideos ?? [],
+      reelVideos: dto.reelVideos ?? [],
       reelVideo: '',
       plane: '',
       brochure: '',
@@ -436,6 +478,7 @@ export class ProjectsService {
       payload.horizontalImages = dto.horizontalImages;
     }
     if (dto.verticalVideos !== undefined) payload.verticalVideos = dto.verticalVideos;
+    if (dto.reelVideos !== undefined) payload.reelVideos = dto.reelVideos;
     if (dto.legalRut !== undefined) payload.legalRut = dto.legalRut;
     if (dto.legalBusinessRegistration !== undefined) {
       payload.legalBusinessRegistration = dto.legalBusinessRegistration;
@@ -637,5 +680,91 @@ export class ProjectsService {
       throw new NotFoundException(`Project with id ${projectId} not found`);
     }
     return updated;
+  }
+
+  public async addReelVideo(
+    projectId: string,
+    videoFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const reelVideos = [...this.resolveReelVideos(project), videoFileName];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { reelVideos, reelVideo: '' },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return this.enrichProjectReelVideos(updated);
+  }
+
+  public async addReelVideos(
+    projectId: string,
+    videoFileNames: string[],
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const reelVideos = [...this.resolveReelVideos(project), ...videoFileNames];
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { reelVideos, reelVideo: '' },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return this.enrichProjectReelVideos(updated);
+  }
+
+  /**
+   * Removes a reel video from the project and deletes the file from storage.
+   */
+  public async removeReelVideo(
+    projectId: string,
+    videoFileName: string,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOne({ _id: projectId, deleted: false })
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    const reelVideos = this.resolveReelVideos(project);
+    const index = reelVideos.indexOf(videoFileName);
+    if (index === -1) {
+      throw new NotFoundException(
+        `Reel video ${videoFileName} not found in project ${projectId}`,
+      );
+    }
+    const newReelVideos = reelVideos.filter((name) => name !== videoFileName);
+    await this.projectImageStorageService.deleteFile(videoFileName);
+    const updated = await this.projectModel
+      .findByIdAndUpdate(
+        projectId,
+        { reelVideos: newReelVideos, reelVideo: '' },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return this.enrichProjectReelVideos(updated);
   }
 }

@@ -12,13 +12,26 @@ export const LIST_PROJECTS_EMPTY_TOOL_OUTPUT = 'No projects found.' as const;
 
 /**
  * Marketing / gallery assets stored on the project (filenames; app serves under uploads).
- * @see project.schema.ts images, cardProject, horizontalImages, verticalVideos, reelVideo, plane, brochure, legal* RAG filenames
+ * @see project.schema.ts images, cardProject, horizontalImages, verticalVideos, reelVideos, plane, brochure, legal* RAG filenames
  */
+function resolveReelVideosForMedia(p: {
+  readonly reelVideos?: readonly string[];
+  readonly reelVideo?: string;
+}): string[] {
+  const fromArray = (p.reelVideos ?? []).map((name) => String(name).trim()).filter(Boolean);
+  if (fromArray.length > 0) {
+    return [...fromArray];
+  }
+  const legacy = (p.reelVideo ?? '').trim();
+  return legacy ? [legacy] : [];
+}
+
 function serializeProjectMedia(p: {
   readonly images?: readonly string[];
   readonly cardProject?: string;
   readonly horizontalImages?: readonly string[];
   readonly verticalVideos?: readonly string[];
+  readonly reelVideos?: readonly string[];
   readonly reelVideo?: string;
   readonly plane?: string;
   readonly brochure?: string;
@@ -32,7 +45,7 @@ function serializeProjectMedia(p: {
     cardProject: (p.cardProject ?? '').trim(),
     horizontalImages: [...(p.horizontalImages ?? [])],
     verticalVideos: [...(p.verticalVideos ?? [])],
-    reelVideo: (p.reelVideo ?? '').trim(),
+    reelVideos: resolveReelVideosForMedia(p),
     plane: (p.plane ?? '').trim(),
     brochure: (p.brochure ?? '').trim(),
     legalRut: (p.legalRut ?? '').trim(),
@@ -144,7 +157,7 @@ export function createSearchProjectsTool(
     },
     {
       name: 'list_projects',
-      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideo, plane (floor plan file), brochure, plus legalRag filenames legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate (stored under uploads/rag from ingestion)—marketing and compliance file references, not RAG text chunks.
+      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideos[], plane (floor plan file), brochure, plus legalRag filenames legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate (stored under uploads/rag from ingestion)—marketing and compliance file references, not RAG text chunks.
 Use this first for prices, lot sizes, photos/gallery/videos/brochure/plano/legal-doc requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search.`,
       schema: z.object({}),
     },
