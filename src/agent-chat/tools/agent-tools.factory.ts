@@ -4,6 +4,11 @@ import type { RagAgentService } from '../../rag-agent/rag-agent.service';
 import type { ProjectsService } from '../../projects/projects.service';
 import type { ProjectDocument } from '../../projects/schemas/project.schema';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import type { ProjectLotsService } from '../../project-lots/project-lots.service';
+import {
+  ProjectLotKind,
+  ProjectLotStatus,
+} from '../../project-lots/types/project-lot.enums';
 
 const DEFAULT_DOCUMENT_SEARCH_LIMIT = 5;
 
@@ -129,6 +134,7 @@ Important: projectIds must be project database IDs (not project names/titles).`,
  */
 export function createSearchProjectsTool(
   projectsService: ProjectsService,
+  projectLotsService?: ProjectLotsService,
   onProjectsListed?: (projects: readonly ProjectDocument[]) => void,
 ): StructuredToolInterface {
   return tool(
@@ -138,6 +144,11 @@ export function createSearchProjectsTool(
         return LIST_PROJECTS_EMPTY_TOOL_OUTPUT;
       }
       onProjectsListed?.(projects);
+      const stockMap = projectLotsService
+        ? await projectLotsService.getStockSummariesForProjects(
+            projects.map((p) => String(p._id)),
+          )
+        : new Map();
       return projects
         .map((p) => {
           const usd = p.priceSellUsd ?? 0;
@@ -151,15 +162,65 @@ export function createSearchProjectsTool(
               ? `, lotOptions: ${JSON.stringify(lotRows)}`
               : ', lotOptions: []';
           const mediaPart = serializeProjectMedia(p);
-          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, city: ${(p.city ?? '').trim()}, country: ${(p.country ?? '').trim()}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD${lotOptionsPart}${mediaPart}, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
+          const stock = stockMap.get(String(p._id));
+          const lotStockPart = stock
+            ? `, lotStock: ${JSON.stringify(stock)}`
+            : '';
+          return `id: ${p._id}, title: ${p.title}, location: ${p.location}, city: ${(p.city ?? '').trim()}, country: ${(p.country ?? '').trim()}, priceSell: ${p.priceSell} COP, priceSellUsd: ${usd} USD${lotOptionsPart}${lotStockPart}${mediaPart}, amenities: [${p.amenities.map((a) => (a as { title?: string }).title).join(', ')}]`;
         })
         .join('\n');
     },
     {
       name: 'list_projects',
-      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideos[], plane (floor plan file), brochure, plus legalRag filenames legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate (stored under uploads/rag from ingestion)—marketing and compliance file references, not RAG text chunks.
-Use this first for prices, lot sizes, photos/gallery/videos/brochure/plano/legal-doc requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search.`,
+      description: `List enabled projects: id, title, location, city, country, prices, lotOptions, lotStock (available/sold/hold/locked counts for residential lots and commercial spaces), amenities, and media (JSON): images[], cardProject, horizontalImages[], verticalVideos[], reelVideos[], plane (floor plan file), brochure, plus legalRag filenames legalRut, legalBusinessRegistration, legalBankCertificate, legalLibertarianCertificate (stored under uploads/rag from ingestion)—marketing and compliance file references, not RAG text chunks.
+Use this first for prices, lot sizes, inventory availability counts, photos/gallery/videos/brochure/plano/legal-doc requests, city-based matching (e.g. Cartagena), and resolving names to IDs before document search or list_project_lots.`,
       schema: z.object({}),
+    },
+  );
+}
+
+/**
+ * Lists individual lot/commercial units (public-safe fields) for availability questions.
+ */
+export function createListProjectLotsTool(
+  projectLotsService: ProjectLotsService,
+): StructuredToolInterface {
+  return tool(
+    async (input) => {
+      const rows = await projectLotsService.listForAgent({
+        projectIds: input.projectIds,
+        kind: input.kind as ProjectLotKind | undefined,
+        status: input.status as ProjectLotStatus | undefined,
+      });
+      if (rows.length === 0) {
+        return 'No lots found for the given filters.';
+      }
+      return rows
+        .map(
+          (r) =>
+            `projectId: ${r.projectId}, kind: ${r.kind}, number: ${r.number}, area: ${r.area} m2, price: ${r.price} COP, status: ${r.status}`,
+        )
+        .join('\n');
+    },
+    {
+      name: 'list_project_lots',
+      description: `List individual inventory units (lots or commercial spaces) for one or more projects.
+Returns number, area (m²), price (COP), status (available|sold|hold|locked), and kind — never ventor names.
+Resolve project IDs with list_projects first. Use status=available to find units still for sale.`,
+      schema: z.object({
+        projectIds: z
+          .array(z.string())
+          .min(1)
+          .describe('Project database IDs from list_projects'),
+        kind: z
+          .enum(['lot', 'commercial'])
+          .optional()
+          .describe('Optional filter: lot or commercial'),
+        status: z
+          .enum(['available', 'sold', 'hold', 'locked'])
+          .optional()
+          .describe('Optional status filter'),
+      }),
     },
   );
 }

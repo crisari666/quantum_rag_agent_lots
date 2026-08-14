@@ -13,6 +13,7 @@ import {
 } from './schemas/agent-chat-gap-log.schema';
 import { RagAgentModule } from '../rag-agent/rag-agent.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { ProjectLotsModule } from '../project-lots/project-lots.module';
 import { AgentChatGapLogService } from './agent-chat-gap-log.service';
 
 @Module({
@@ -23,6 +24,7 @@ import { AgentChatGapLogService } from './agent-chat-gap-log.service';
     ]),
     RagAgentModule,
     ProjectsModule,
+    ProjectLotsModule,
   ],
   controllers: [AgentChatController],
   providers: [AgentChatService, AgentChatHistoryService, AgentChatGapLogService],
