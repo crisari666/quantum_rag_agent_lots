@@ -4,15 +4,18 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
   Query,
   UploadedFile,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
+  forwardRef,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
@@ -40,6 +43,10 @@ import {
   MAX_REEL_VIDEO_FILE_SIZE_BYTES,
 } from './constants/image-upload.constants';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
+import { ProjectLotsService } from '../project-lots/project-lots.service';
+import { OfficeLevelGuard } from '../core/guards/office-level.guard';
+import { Roles } from '../core/decorators/roles.decorator';
+import { OFFICE_USER_LEVEL } from '../core/constants/office-user-level.constants';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -49,6 +56,8 @@ export class ProjectsController {
     private readonly imageCompressionService: ImageCompressionService,
     private readonly projectImageStorageService: ProjectImageStorageService,
     private readonly projectDocumentUploadService: ProjectDocumentUploadService,
+    @Inject(forwardRef(() => ProjectLotsService))
+    private readonly projectLotsService: ProjectLotsService,
   ) {}
 
   @Post()
@@ -131,6 +140,21 @@ export class ProjectsController {
       );
     }
     return this.projectsService.list(normalized as ListProjectsEnableFilter);
+  }
+
+  @Get('lot-inventory')
+  @UseGuards(OfficeLevelGuard)
+  @Roles(
+    OFFICE_USER_LEVEL.admin,
+    OFFICE_USER_LEVEL.subadmin,
+    OFFICE_USER_LEVEL.content,
+  )
+  @ApiOperation({
+    summary: 'List all projects with lot/commercial inventory summaries',
+  })
+  @ApiResponse({ status: 200, description: 'Inventory hub rows.' })
+  public listLotInventoryHub() {
+    return this.projectLotsService.listInventoryHub();
   }
 
   @Get('admin/test')

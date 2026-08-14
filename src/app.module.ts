@@ -10,6 +10,7 @@ import { AmenitiesModule } from './amenities/amenities.module';
 import { ProjectsModule } from './projects/projects.module';
 import { AgentChatModule } from './agent-chat/agent-chat.module';
 import { ProjectReleaseModule } from './project-release/project-release.module';
+import { ProjectLotsModule } from './project-lots/project-lots.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ProjectReleaseModule } from './project-release/project-release.module';
     RagAgentModule,
     AmenitiesModule,
     ProjectsModule,
+    ProjectLotsModule,
     AgentChatModule,
     ProjectReleaseModule,
   ],
