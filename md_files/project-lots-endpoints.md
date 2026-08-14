@@ -8,7 +8,7 @@ Levels: **admin** `0`, **subadmin** `1`, **content** `9`.
 |--------|------|------|-------|
 | GET | `/projects/lot-inventory` | admin/subadmin/content | Hub: projects + status summaries |
 | GET | `/projects/:projectId/lots` | admin/subadmin/content | `?kind=lot\|commercial\|all` + summary |
-| GET | `/projects/:projectId/lots/public` | **public** | `{ number, area, price, status, kind }` + summary (no ventor) |
+| GET | `/projects/:projectId/lots/public` | **public** | `{ projectId, projectTitle, lots[{ number, area, price, status, kind, ventorName }], summary }` (no soldBy) |
 | POST | `/projects/:projectId/lots/generate` | admin/subadmin | Body optional overrides: nLots, nCommercialSpaces, baseLotArea, baseCommercialArea, defaultLotPrice, defaultCommercialPrice. Creates missing numbers only. |
 | PATCH | `/projects/:projectId/lots/:lotId` | admin/subadmin/content | area, price, status, ventorName, soldBy |
 | PATCH | `/projects/:projectId/lots/bulk-status` | admin/subadmin/content | `{ lotIds, status, ventorName?, soldBy? }` |

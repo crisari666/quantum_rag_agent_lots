@@ -56,7 +56,7 @@ export class ProjectLotsController {
   @Get(':projectId/lots/public')
   @ApiOperation({
     summary:
-      'Public catalog of lots (number, area, price, status, kind). No ventor/soldBy.',
+      'Public catalog of lots (number, area, price, status, kind, ventorName). No soldBy.',
   })
   @ApiParam({ name: 'projectId' })
   @ApiQuery({

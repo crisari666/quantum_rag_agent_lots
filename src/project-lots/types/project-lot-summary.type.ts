@@ -17,6 +17,7 @@ export type PublicProjectLot = Readonly<{
   price: number;
   status: string;
   kind: string;
+  ventorName: string;
 }>;
 
 export type ProjectLotInventoryRow = Readonly<{

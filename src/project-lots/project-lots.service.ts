@@ -33,6 +33,8 @@ export type ListLotsResult = Readonly<{
 }>;
 
 export type PublicLotsResult = Readonly<{
+  projectId: string;
+  projectTitle: string;
   lots: PublicProjectLot[];
   summary: LotKindSummary;
 }>;
@@ -107,7 +109,10 @@ export class ProjectLotsService {
     kind: ProjectLotKind | 'all' = 'all',
   ): Promise<PublicLotsResult> {
     const { lots, summary } = await this.listByProject(projectId, kind);
+    const project = await this.projectsService.getById(projectId);
     return {
+      projectId,
+      projectTitle: project.title,
       summary,
       lots: lots.map((lot) => ({
         number: lot.number,
@@ -115,6 +120,7 @@ export class ProjectLotsService {
         price: lot.price,
         status: lot.status,
         kind: lot.kind,
+        ventorName: lot.ventorName ?? '',
       })),
     };
   }
