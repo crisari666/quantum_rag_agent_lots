@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -52,6 +53,43 @@ export class UpdateProjectLotDto {
   @IsString()
   @MaxLength(MAX_SOLD_BY)
   soldBy?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ISO datetime when hold expires (required in spirit for hold; defaults to now+24h if omitted)',
+    example: '2026-08-15T15:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  holdUntil?: string;
+
+  @ApiPropertyOptional({
+    description: 'Stage key (e.g. "1", "etapa-norte"). Empty → default.',
+    maxLength: 120,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  stageKey?: string;
+
+  @ApiPropertyOptional({
+    description: 'Stage display name',
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  stageName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Stage sort order (lower first)',
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  stageOrder?: number;
 }
 
 export class BulkUpdateLotStatusDto {
@@ -76,6 +114,15 @@ export class BulkUpdateLotStatusDto {
   @IsString()
   @MaxLength(MAX_SOLD_BY)
   soldBy?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ISO datetime when hold expires; defaults to now+24h when status is hold',
+    example: '2026-08-15T15:00:00.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  holdUntil?: string;
 }
 
 export class GenerateProjectLotsDto {

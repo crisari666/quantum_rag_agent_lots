@@ -56,7 +56,7 @@ export class ProjectLotsController {
   @Get(':projectId/lots/public')
   @ApiOperation({
     summary:
-      'Public catalog of lots (number, area, price, status, kind, ventorName). No soldBy.',
+      'Public catalog of lots (number, area, price, status, kind, ventorName, holdUntil, stage*). No soldBy. Expired holds released on read.',
   })
   @ApiParam({ name: 'projectId' })
   @ApiQuery({
@@ -64,14 +64,21 @@ export class ProjectLotsController {
     required: false,
     enum: ['lot', 'commercial', 'all'],
   })
+  @ApiQuery({
+    name: 'stage',
+    required: false,
+    description: 'Filter by stageKey (e.g. default, 1)',
+  })
   @ApiResponse({ status: 200, description: 'Public lots + summary.' })
   public listPublic(
     @Param('projectId') projectId: string,
     @Query('kind') kind?: string,
+    @Query('stage') stage?: string,
   ) {
     return this.projectLotsService.listPublic(
       projectId,
       this.parseKindFilter(kind),
+      stage,
     );
   }
 
@@ -101,13 +108,20 @@ export class ProjectLotsController {
     required: false,
     enum: ['lot', 'commercial', 'all'],
   })
+  @ApiQuery({
+    name: 'stage',
+    required: false,
+    description: 'Filter by stageKey',
+  })
   public listByProject(
     @Param('projectId') projectId: string,
     @Query('kind') kind?: string,
+    @Query('stage') stage?: string,
   ) {
     return this.projectLotsService.listByProject(
       projectId,
       this.parseKindFilter(kind),
+      stage,
     );
   }
 

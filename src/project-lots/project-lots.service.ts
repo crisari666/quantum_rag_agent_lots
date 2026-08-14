@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -15,6 +16,9 @@ import {
   UpdateProjectLotDto,
 } from './dto/project-lot.dto';
 import {
+  DEFAULT_STAGE_KEY,
+  DEFAULT_STAGE_NAME,
+  DEFAULT_STAGE_ORDER,
   ProjectLot,
   ProjectLotDocument,
 } from './schemas/project-lot.schema';
@@ -52,11 +56,13 @@ export type GenerateLotsResult = Readonly<{
   project: ProjectDocument;
 }>;
 
+const HOLD_DEFAULT_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Inventory of physical lots and commercial spaces per project.
  */
 @Injectable()
-export class ProjectLotsService {
+export class ProjectLotsService implements OnModuleInit {
   public constructor(
     @InjectModel(ProjectLot.name)
     private readonly projectLotModel: Model<ProjectLotDocument>,
@@ -65,7 +71,18 @@ export class ProjectLotsService {
     private readonly excelParser: ProjectLotExcelParserService,
   ) {}
 
+  public async onModuleInit(): Promise<void> {
+    try {
+      await this.projectLotModel.collection.dropIndex(
+        'projectId_1_kind_1_number_1',
+      );
+    } catch {
+      // Index may already be absent after migration.
+    }
+  }
+
   public async listInventoryHub(): Promise<ProjectLotInventoryRow[]> {
+    await this.releaseExpiredHolds();
     const projects = await this.projectsService.list('all');
     const summaries = await this.buildSummariesByProjectIds(
       projects.map((p) => String(p._id)),
@@ -88,17 +105,23 @@ export class ProjectLotsService {
   public async listByProject(
     projectId: string,
     kind: ProjectLotKind | 'all' = 'all',
+    stageKey?: string,
   ): Promise<ListLotsResult> {
     await this.projectsService.getById(projectId);
+    await this.releaseExpiredHolds(projectId);
+    await this.backfillMissingStages(projectId);
     const filter: Record<string, unknown> = {
       projectId: new Types.ObjectId(projectId),
     };
     if (kind !== 'all') {
       filter.kind = kind;
     }
+    if (stageKey !== undefined && stageKey.trim() !== '') {
+      filter.stageKey = stageKey.trim();
+    }
     const lots = await this.projectLotModel
       .find(filter)
-      .sort({ kind: 1, number: 1 })
+      .sort({ kind: 1, stageOrder: 1, stageKey: 1, number: 1 })
       .exec();
     const summary = await this.buildSummaryForProject(projectId);
     return { lots, summary };
@@ -107,8 +130,13 @@ export class ProjectLotsService {
   public async listPublic(
     projectId: string,
     kind: ProjectLotKind | 'all' = 'all',
+    stageKey?: string,
   ): Promise<PublicLotsResult> {
-    const { lots, summary } = await this.listByProject(projectId, kind);
+    const { lots, summary } = await this.listByProject(
+      projectId,
+      kind,
+      stageKey,
+    );
     const project = await this.projectsService.getById(projectId);
     return {
       projectId,
@@ -121,6 +149,10 @@ export class ProjectLotsService {
         status: lot.status,
         kind: lot.kind,
         ventorName: lot.ventorName ?? '',
+        holdUntil: lot.holdUntil ? lot.holdUntil.toISOString() : null,
+        stageKey: lot.stageKey ?? DEFAULT_STAGE_KEY,
+        stageName: lot.stageName ?? DEFAULT_STAGE_NAME,
+        stageOrder: lot.stageOrder ?? DEFAULT_STAGE_ORDER,
       })),
     };
   }
@@ -194,16 +226,51 @@ export class ProjectLotsService {
     dto: UpdateProjectLotDto,
   ): Promise<ProjectLotDocument> {
     await this.projectsService.getById(projectId);
-    const payload: Partial<ProjectLot> = {};
-    if (dto.area !== undefined) payload.area = dto.area;
-    if (dto.price !== undefined) payload.price = dto.price;
-    if (dto.status !== undefined) payload.status = dto.status;
-    if (dto.ventorName !== undefined) payload.ventorName = dto.ventorName.trim();
-    if (dto.soldBy !== undefined) payload.soldBy = dto.soldBy.trim();
+    await this.releaseExpiredHolds(projectId);
+    const existing = await this.projectLotModel
+      .findOne({ _id: lotId, projectId: new Types.ObjectId(projectId) })
+      .exec();
+    if (!existing) {
+      throw new NotFoundException(
+        `Lot ${lotId} not found in project ${projectId}`,
+      );
+    }
+    const nextStatus = dto.status ?? existing.status;
+    const setPayload: Record<string, unknown> = {};
+    const unsetPayload: Record<string, unknown> = {};
+    if (dto.area !== undefined) setPayload.area = dto.area;
+    if (dto.price !== undefined) setPayload.price = dto.price;
+    if (dto.status !== undefined) setPayload.status = dto.status;
+    if (dto.ventorName !== undefined) setPayload.ventorName = dto.ventorName.trim();
+    if (dto.soldBy !== undefined) setPayload.soldBy = dto.soldBy.trim();
+    if (dto.stageKey !== undefined) {
+      setPayload.stageKey = this.normalizeStageKey(dto.stageKey);
+    }
+    if (dto.stageName !== undefined) {
+      setPayload.stageName = this.normalizeStageName(
+        dto.stageName,
+        String(setPayload.stageKey ?? existing.stageKey ?? DEFAULT_STAGE_KEY),
+      );
+    }
+    if (dto.stageOrder !== undefined) {
+      setPayload.stageOrder = dto.stageOrder;
+    }
+    if (nextStatus === ProjectLotStatus.hold) {
+      setPayload.holdUntil = this.resolveHoldUntil(dto.holdUntil);
+    } else if (dto.status !== undefined || dto.holdUntil !== undefined) {
+      setPayload.holdUntil = null;
+    }
+    const update: Record<string, unknown> = {};
+    if (Object.keys(setPayload).length > 0) {
+      update.$set = setPayload;
+    }
+    if (Object.keys(unsetPayload).length > 0) {
+      update.$unset = unsetPayload;
+    }
     const lot = await this.projectLotModel
       .findOneAndUpdate(
         { _id: lotId, projectId: new Types.ObjectId(projectId) },
-        { $set: payload },
+        update,
         { new: true },
       )
       .exec();
@@ -220,6 +287,7 @@ export class ProjectLotsService {
     dto: BulkUpdateLotStatusDto,
   ): Promise<{ modifiedCount: number }> {
     await this.projectsService.getById(projectId);
+    await this.releaseExpiredHolds(projectId);
     if (!dto.lotIds?.length) {
       throw new BadRequestException('lotIds must not be empty');
     }
@@ -229,6 +297,11 @@ export class ProjectLotsService {
     }
     if (dto.soldBy !== undefined) {
       setPayload.soldBy = dto.soldBy.trim();
+    }
+    if (dto.status === ProjectLotStatus.hold) {
+      setPayload.holdUntil = this.resolveHoldUntil(dto.holdUntil);
+    } else {
+      setPayload.holdUntil = null;
     }
     const result = await this.projectLotModel
       .updateMany(
@@ -265,22 +338,27 @@ export class ProjectLotsService {
         .findOne({
           projectId: new Types.ObjectId(projectId),
           kind,
+          stageKey: row.stageKey,
           number: row.number,
         })
         .exec();
       if (existing) {
+        const setFields: Record<string, unknown> = {
+          area: row.area,
+          price: row.price,
+          status: row.status,
+          ventorName: row.ventorName,
+          stageKey: row.stageKey,
+          stageName: row.stageName,
+          stageOrder: row.stageOrder,
+        };
+        if (row.status === ProjectLotStatus.hold) {
+          setFields.holdUntil = this.defaultHoldUntil();
+        } else {
+          setFields.holdUntil = null;
+        }
         await this.projectLotModel
-          .updateOne(
-            { _id: existing._id },
-            {
-              $set: {
-                area: row.area,
-                price: row.price,
-                status: row.status,
-                ventorName: row.ventorName,
-              },
-            },
-          )
+          .updateOne({ _id: existing._id }, { $set: setFields })
           .exec();
         updated += 1;
       } else {
@@ -288,11 +366,18 @@ export class ProjectLotsService {
           projectId: new Types.ObjectId(projectId),
           kind,
           number: row.number,
+          stageKey: row.stageKey,
+          stageName: row.stageName,
+          stageOrder: row.stageOrder,
           area: row.area,
           price: row.price,
           status: row.status,
           ventorName: row.ventorName,
           soldBy: '',
+          holdUntil:
+            row.status === ProjectLotStatus.hold
+              ? this.defaultHoldUntil()
+              : null,
         });
         created += 1;
       }
@@ -345,6 +430,7 @@ export class ProjectLotsService {
     if (!params.projectIds.length) {
       return [];
     }
+    await this.releaseExpiredHolds();
     const filter: Record<string, unknown> = {
       projectId: {
         $in: params.projectIds.map((id) => new Types.ObjectId(id)),
@@ -358,7 +444,7 @@ export class ProjectLotsService {
     }
     const lots = await this.projectLotModel
       .find(filter)
-      .sort({ projectId: 1, kind: 1, number: 1 })
+      .sort({ projectId: 1, kind: 1, stageOrder: 1, stageKey: 1, number: 1 })
       .limit(500)
       .exec();
     return lots.map((lot) => ({
@@ -368,6 +454,9 @@ export class ProjectLotsService {
       area: lot.area,
       price: lot.price,
       status: lot.status,
+      stageKey: lot.stageKey ?? DEFAULT_STAGE_KEY,
+      stageName: lot.stageName ?? DEFAULT_STAGE_NAME,
+      stageOrder: lot.stageOrder ?? DEFAULT_STAGE_ORDER,
     }));
   }
 
@@ -385,6 +474,7 @@ export class ProjectLotsService {
       .find({
         projectId: new Types.ObjectId(params.projectId),
         kind: params.kind,
+        stageKey: DEFAULT_STAGE_KEY,
       })
       .select('number')
       .lean()
@@ -400,11 +490,15 @@ export class ProjectLotsService {
         projectId: new Types.ObjectId(params.projectId),
         kind: params.kind,
         number,
+        stageKey: DEFAULT_STAGE_KEY,
+        stageName: DEFAULT_STAGE_NAME,
+        stageOrder: DEFAULT_STAGE_ORDER,
         area: params.area,
         price: params.price,
         status: ProjectLotStatus.available,
         soldBy: '',
         ventorName: '',
+        holdUntil: null,
       });
     }
     if (toCreate.length === 0) {
@@ -412,6 +506,88 @@ export class ProjectLotsService {
     }
     await this.projectLotModel.insertMany(toCreate);
     return toCreate.length;
+  }
+
+  /**
+   * One-time backfill for lots missing stage fields (legacy rows).
+   */
+  private async backfillMissingStages(projectId: string): Promise<void> {
+    await this.projectLotModel
+      .updateMany(
+        {
+          projectId: new Types.ObjectId(projectId),
+          $or: [
+            { stageKey: { $exists: false } },
+            { stageKey: null },
+            { stageKey: '' },
+          ],
+        },
+        {
+          $set: {
+            stageKey: DEFAULT_STAGE_KEY,
+            stageName: DEFAULT_STAGE_NAME,
+            stageOrder: DEFAULT_STAGE_ORDER,
+          },
+        },
+      )
+      .exec();
+  }
+
+  private normalizeStageKey(raw: string): string {
+    const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '-');
+    return trimmed === '' ? DEFAULT_STAGE_KEY : trimmed;
+  }
+
+  private normalizeStageName(raw: string, stageKey: string): string {
+    const trimmed = raw.trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+    if (stageKey === DEFAULT_STAGE_KEY) {
+      return DEFAULT_STAGE_NAME;
+    }
+    return `Etapa ${stageKey}`;
+  }
+
+
+  /**
+   * Releases hold lots whose holdUntil has passed (on-read expiry).
+   */
+  private async releaseExpiredHolds(projectId?: string): Promise<void> {
+    const filter: Record<string, unknown> = {
+      status: ProjectLotStatus.hold,
+      holdUntil: { $lte: new Date() },
+    };
+    if (projectId) {
+      filter.projectId = new Types.ObjectId(projectId);
+    }
+    await this.projectLotModel
+      .updateMany(filter, {
+        $set: { status: ProjectLotStatus.available, holdUntil: null },
+      })
+      .exec();
+  }
+
+  private defaultHoldUntil(): Date {
+    return new Date(Date.now() + HOLD_DEFAULT_MS);
+  }
+
+  /**
+   * Resolves holdUntil from optional ISO string; defaults to now+24h.
+   * Rejects past dates.
+   */
+  private resolveHoldUntil(raw?: string): Date {
+    if (raw === undefined || raw.trim() === '') {
+      return this.defaultHoldUntil();
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('holdUntil must be a valid ISO datetime');
+    }
+    if (parsed.getTime() <= Date.now()) {
+      throw new BadRequestException('holdUntil must be in the future');
+    }
+    return parsed;
   }
 
   private async assertCanShrinkCounts(

@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
+import {
+  DEFAULT_STAGE_KEY,
+  DEFAULT_STAGE_NAME,
+  DEFAULT_STAGE_ORDER,
+} from '../schemas/project-lot.schema';
 import { ProjectLotStatus } from '../types/project-lot.enums';
 
 export type ParsedLotImportRow = Readonly<{
@@ -8,6 +13,9 @@ export type ParsedLotImportRow = Readonly<{
   price: number;
   ventorName: string;
   status: ProjectLotStatus;
+  stageKey: string;
+  stageName: string;
+  stageOrder: number;
   rowIndex: number;
 }>;
 
@@ -39,7 +47,9 @@ const STATUS_MAP: Readonly<Record<string, ProjectLotStatus>> = {
 @Injectable()
 export class ProjectLotExcelParserService {
   /**
-   * Reads workbook buffer and maps rows by headers: nLots, area, price, ventor, status.
+   * Reads workbook buffer and maps rows by headers.
+   * Required: nLots, area, price, status.
+   * Optional: ventor, stage, stageName, stageOrder.
    */
   public async parseWorkbook(buffer: Buffer): Promise<LotImportParseResult> {
     const workbook = new ExcelJS.Workbook();
@@ -56,12 +66,14 @@ export class ProjectLotExcelParserService {
       return {
         rows: [],
         errors: [
-          `Missing required headers: ${missing.join(', ')} (expected nLots, area, price, ventor, status)`,
+          `Missing required headers: ${missing.join(', ')} (expected nLots, area, price, ventor, status; optional stage, stageName, stageOrder)`,
         ],
       };
     }
     const rows: ParsedLotImportRow[] = [];
     const errors: string[] = [];
+    const stageOrderByKey = new Map<string, number>();
+    let nextDerivedOrder = 1;
     const lastRow = sheet.rowCount;
     for (let rowIndex = 2; rowIndex <= lastRow; rowIndex += 1) {
       const row = sheet.getRow(rowIndex);
@@ -99,7 +111,55 @@ export class ProjectLotExcelParserService {
           );
           continue;
         }
-        rows.push({ number, area, price, ventorName, status, rowIndex });
+        const stageRaw =
+          headerMap.stage !== undefined
+            ? this.cellText(row, headerMap.stage)
+            : '';
+        const stageKey = this.normalizeStageKey(stageRaw);
+        const stageNameRaw =
+          headerMap.stagename !== undefined
+            ? this.cellText(row, headerMap.stagename)
+            : '';
+        const stageName = this.normalizeStageName(stageNameRaw, stageKey);
+        let stageOrder = DEFAULT_STAGE_ORDER;
+        if (headerMap.stageorder !== undefined) {
+          const parsedOrder = this.cellNumber(row, headerMap.stageorder);
+          if (parsedOrder !== null && parsedOrder >= 0) {
+            stageOrder = parsedOrder;
+          } else {
+            stageOrder = this.deriveStageOrder(
+              stageKey,
+              stageOrderByKey,
+              () => {
+                const order = nextDerivedOrder;
+                nextDerivedOrder += 1;
+                return order;
+              },
+            );
+          }
+        } else {
+          stageOrder = this.deriveStageOrder(
+            stageKey,
+            stageOrderByKey,
+            () => {
+              const order = nextDerivedOrder;
+              nextDerivedOrder += 1;
+              return order;
+            },
+          );
+        }
+        stageOrderByKey.set(stageKey, stageOrder);
+        rows.push({
+          number,
+          area,
+          price,
+          ventorName,
+          status,
+          stageKey,
+          stageName,
+          stageOrder,
+          rowIndex,
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         errors.push(`Row ${rowIndex}: ${message}`);
@@ -127,6 +187,25 @@ export class ProjectLotExcelParserService {
         map.ventor = colNumber;
       } else if (key === 'status' || key === 'estado') {
         map.status = colNumber;
+      } else if (
+        key === 'stage' ||
+        key === 'etapa' ||
+        key === 'fase' ||
+        key === 'stagekey'
+      ) {
+        map.stage = colNumber;
+      } else if (
+        key === 'stagename' ||
+        key === 'etapanombre' ||
+        key === 'nombreetapa'
+      ) {
+        map.stagename = colNumber;
+      } else if (
+        key === 'stageorder' ||
+        key === 'ordenetapa' ||
+        key === 'etapaorden'
+      ) {
+        map.stageorder = colNumber;
       }
     });
     return map;
@@ -158,11 +237,33 @@ export class ProjectLotExcelParserService {
   }
 
   private cellNumber(row: ExcelJS.Row, col: number): number | null {
-    const raw = this.cellText(row, col).replace(/,/g, '').trim();
-    if (raw === '') {
+    return this.parseNumericCell(this.cellText(row, col));
+  }
+
+  /**
+   * Parses numbers from Excel cells, including COP-style money:
+   * `$ 52.000.000` → 52000000, `1.200,5` → 1200.5, `450000000` → 450000000.
+   */
+  public parseNumericCell(raw: string): number | null {
+    let value = raw
+      .trim()
+      .replace(/\$/g, '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, '')
+      .replace(/cop/gi, '');
+    if (value === '') {
       return null;
     }
-    const n = Number(raw);
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(value)) {
+      value = value.replace(/\./g, '').replace(',', '.');
+    } else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(value)) {
+      value = value.replace(/,/g, '');
+    } else if (/^\d+,\d+$/.test(value)) {
+      value = value.replace(',', '.');
+    } else {
+      value = value.replace(/,/g, '');
+    }
+    const n = Number(value);
     return Number.isFinite(n) ? n : null;
   }
 
@@ -179,5 +280,40 @@ export class ProjectLotExcelParserService {
       return String(parseInt(digitMatch[1], 10));
     }
     return trimmed;
+  }
+
+  public normalizeStageKey(raw: string): string {
+    const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '-');
+    return trimmed === '' ? DEFAULT_STAGE_KEY : trimmed;
+  }
+
+  public normalizeStageName(raw: string, stageKey: string): string {
+    const trimmed = raw.trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+    if (stageKey === DEFAULT_STAGE_KEY) {
+      return DEFAULT_STAGE_NAME;
+    }
+    return `Etapa ${stageKey}`;
+  }
+
+  private deriveStageOrder(
+    stageKey: string,
+    known: Map<string, number>,
+    nextOrder: () => number,
+  ): number {
+    if (stageKey === DEFAULT_STAGE_KEY) {
+      return DEFAULT_STAGE_ORDER;
+    }
+    const existing = known.get(stageKey);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const numericKey = Number(stageKey);
+    if (Number.isFinite(numericKey) && numericKey >= 0) {
+      return numericKey;
+    }
+    return nextOrder();
   }
 }

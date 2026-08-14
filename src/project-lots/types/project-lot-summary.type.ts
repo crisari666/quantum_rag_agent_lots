@@ -18,6 +18,10 @@ export type PublicProjectLot = Readonly<{
   status: string;
   kind: string;
   ventorName: string;
+  holdUntil: string | null;
+  stageKey: string;
+  stageName: string;
+  stageOrder: number;
 }>;
 
 export type ProjectLotInventoryRow = Readonly<{
