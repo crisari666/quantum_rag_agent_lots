@@ -272,4 +272,46 @@ export class UpdateProjectDto {
   @IsString()
   @MaxLength(MAX_LEGAL_RAG_DOC_FILENAME_LENGTH)
   legalLibertarianCertificate?: string;
+
+  @ApiPropertyOptional({ example: 120, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nLots?: number;
+
+  @ApiPropertyOptional({ example: 10, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nCommercialSpaces?: number;
+
+  @ApiPropertyOptional({ example: 200, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  baseLotArea?: number;
+
+  @ApiPropertyOptional({ example: 80, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  baseCommercialArea?: number;
+
+  @ApiPropertyOptional({ example: 450_000_000, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  defaultLotPrice?: number;
+
+  @ApiPropertyOptional({ example: 300_000_000, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  defaultCommercialPrice?: number;
 }

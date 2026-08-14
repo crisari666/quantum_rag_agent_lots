@@ -154,6 +154,30 @@ export class Project {
   @Prop({ trim: true, default: '' })
   legalLibertarianCertificate: string;
 
+  /** Target count of residential lots to generate in inventory. */
+  @Prop({ default: 0, min: 0 })
+  nLots: number;
+
+  /** Target count of commercial spaces to generate in inventory. */
+  @Prop({ default: 0, min: 0 })
+  nCommercialSpaces: number;
+
+  /** Default area (m²) applied when generating residential lots. */
+  @Prop({ default: 0, min: 0 })
+  baseLotArea: number;
+
+  /** Default area (m²) applied when generating commercial spaces. */
+  @Prop({ default: 0, min: 0 })
+  baseCommercialArea: number;
+
+  /** Default COP price for generated residential lots (falls back to priceSell). */
+  @Prop({ default: 0, min: 0 })
+  defaultLotPrice: number;
+
+  /** Default COP price for generated commercial spaces (falls back to priceSell). */
+  @Prop({ default: 0, min: 0 })
+  defaultCommercialPrice: number;
+
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

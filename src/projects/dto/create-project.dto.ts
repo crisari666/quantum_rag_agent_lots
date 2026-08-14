@@ -241,4 +241,70 @@ export class CreateProjectDto {
   @IsString({ each: true })
   reelVideos?: string[];
 
+  @ApiPropertyOptional({
+    example: 120,
+    minimum: 0,
+    description: 'Target count of residential lots for inventory generation.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nLots?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    minimum: 0,
+    description: 'Target count of commercial spaces for inventory generation.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  nCommercialSpaces?: number;
+
+  @ApiPropertyOptional({
+    example: 200,
+    minimum: 0,
+    description: 'Default area (m²) when generating residential lots.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  baseLotArea?: number;
+
+  @ApiPropertyOptional({
+    example: 80,
+    minimum: 0,
+    description: 'Default area (m²) when generating commercial spaces.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  baseCommercialArea?: number;
+
+  @ApiPropertyOptional({
+    example: 450_000_000,
+    minimum: 0,
+    description: 'Default COP price for generated residential lots.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  defaultLotPrice?: number;
+
+  @ApiPropertyOptional({
+    example: 300_000_000,
+    minimum: 0,
+    description: 'Default COP price for generated commercial spaces.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  defaultCommercialPrice?: number;
+
 }

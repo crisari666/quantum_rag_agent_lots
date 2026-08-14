@@ -426,6 +426,12 @@ export class ProjectsService {
       legalBusinessRegistration: '',
       legalBankCertificate: '',
       legalLibertarianCertificate: '',
+      nLots: dto.nLots ?? 0,
+      nCommercialSpaces: dto.nCommercialSpaces ?? 0,
+      baseLotArea: dto.baseLotArea ?? 0,
+      baseCommercialArea: dto.baseCommercialArea ?? 0,
+      defaultLotPrice: dto.defaultLotPrice ?? 0,
+      defaultCommercialPrice: dto.defaultCommercialPrice ?? 0,
       deleted: false,
     };
   }
@@ -488,6 +494,20 @@ export class ProjectsService {
     }
     if (dto.legalLibertarianCertificate !== undefined) {
       payload.legalLibertarianCertificate = dto.legalLibertarianCertificate;
+    }
+    if (dto.nLots !== undefined) payload.nLots = dto.nLots;
+    if (dto.nCommercialSpaces !== undefined) {
+      payload.nCommercialSpaces = dto.nCommercialSpaces;
+    }
+    if (dto.baseLotArea !== undefined) payload.baseLotArea = dto.baseLotArea;
+    if (dto.baseCommercialArea !== undefined) {
+      payload.baseCommercialArea = dto.baseCommercialArea;
+    }
+    if (dto.defaultLotPrice !== undefined) {
+      payload.defaultLotPrice = dto.defaultLotPrice;
+    }
+    if (dto.defaultCommercialPrice !== undefined) {
+      payload.defaultCommercialPrice = dto.defaultCommercialPrice;
     }
     return payload;
   }
