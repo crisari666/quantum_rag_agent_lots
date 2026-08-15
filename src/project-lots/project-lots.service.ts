@@ -335,7 +335,7 @@ export class ProjectLotsService implements OnModuleInit {
       if (Number.isFinite(numeric) && numeric > maxNumber) {
         maxNumber = numeric;
       }
-      const existing = await this.projectLotModel
+      let existing = await this.projectLotModel
         .findOne({
           projectId: new Types.ObjectId(projectId),
           kind,
@@ -343,6 +343,16 @@ export class ProjectLotsService implements OnModuleInit {
           number: row.number,
         })
         .exec();
+      if (!existing && row.stageKey === '1') {
+        existing = await this.projectLotModel
+          .findOne({
+            projectId: new Types.ObjectId(projectId),
+            kind,
+            stageKey: DEFAULT_STAGE_KEY,
+            number: row.number,
+          })
+          .exec();
+      }
       if (existing) {
         const setFields: Record<string, unknown> = {
           area: row.area,

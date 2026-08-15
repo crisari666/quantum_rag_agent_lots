@@ -48,8 +48,9 @@ const STATUS_MAP: Readonly<Record<string, ProjectLotStatus>> = {
 export class ProjectLotExcelParserService {
   /**
    * Reads workbook buffer and maps rows by headers.
-   * Required: nLots, area, price, status.
-   * Optional: ventor, stage, stageName, stageOrder.
+   * Required: stage, nLots, area, price, status.
+   * Optional: ventor, stageName, stageOrder.
+   * Empty stage cell defaults to stage `1` (Etapa 1).
    */
   public async parseWorkbook(buffer: Buffer): Promise<LotImportParseResult> {
     const workbook = new ExcelJS.Workbook();
@@ -60,13 +61,13 @@ export class ProjectLotExcelParserService {
     }
     const headerRow = sheet.getRow(1);
     const headerMap = this.buildHeaderMap(headerRow);
-    const required = ['nlots', 'area', 'price', 'status'] as const;
+    const required = ['stage', 'nlots', 'area', 'price', 'status'] as const;
     const missing = required.filter((key) => headerMap[key] === undefined);
     if (missing.length > 0) {
       return {
         rows: [],
         errors: [
-          `Missing required headers: ${missing.join(', ')} (expected nLots, area, price, ventor, status; optional stage, stageName, stageOrder)`,
+          `Missing required headers: ${missing.join(', ')} (expected stage, nLots, area, price, status; optional ventor, stageName, stageOrder). Stage column is required; empty cells default to 1.`,
         ],
       };
     }
@@ -111,10 +112,7 @@ export class ProjectLotExcelParserService {
           );
           continue;
         }
-        const stageRaw =
-          headerMap.stage !== undefined
-            ? this.cellText(row, headerMap.stage)
-            : '';
+        const stageRaw = this.cellText(row, headerMap.stage);
         const stageKey = this.normalizeStageKey(stageRaw);
         const stageNameRaw =
           headerMap.stagename !== undefined
@@ -282,9 +280,25 @@ export class ProjectLotExcelParserService {
     return trimmed;
   }
 
+  /**
+   * Empty / general / default → stage `1` so Excel inventory joins map polygons.
+   */
   public normalizeStageKey(raw: string): string {
     const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '-');
-    return trimmed === '' ? DEFAULT_STAGE_KEY : trimmed;
+    if (
+      trimmed === '' ||
+      trimmed === DEFAULT_STAGE_KEY ||
+      trimmed === 'general' ||
+      trimmed === 'etapa-1' ||
+      trimmed === 'etapa1'
+    ) {
+      return '1';
+    }
+    const digitMatch = trimmed.match(/^(\d+)/);
+    if (digitMatch) {
+      return String(parseInt(digitMatch[1], 10));
+    }
+    return trimmed;
   }
 
   public normalizeStageName(raw: string, stageKey: string): string {

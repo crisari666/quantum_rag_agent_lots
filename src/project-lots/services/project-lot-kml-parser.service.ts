@@ -6,9 +6,12 @@ import type {
 } from '../types/project-lot-map.type';
 
 const LOTES_FOLDER_NAME = 'Lotes (poligonos)';
+/** Placemark names like `1-12` / `2-3` (stage-lot). */
+const STAGE_LOT_NAME_REGEX = /^(\d+)\s*[-–_]\s*(.+)$/;
 
 type ParsedPolygon = Readonly<{
   lotNumber: string;
+  stageKey: string | null;
   ring: LotMapRing;
   centroidLon: number;
   centroidLat: number;
@@ -20,7 +23,11 @@ type ParsedPolygon = Readonly<{
 @Injectable()
 export class ProjectLotKmlParserService {
   /**
-   * Converts KML buffer into a FeatureCollection with west/east stage assignment.
+   * Converts KML buffer into a FeatureCollection.
+   * Stage assignment priority:
+   * 1) ExtendedData stageKey + lotNumber
+   * 2) Placemark name `{stage}-{lot}` (e.g. 1-1, 2-3)
+   * 3) Legacy plain lot numbers → west/east by centroid lon
    */
   public parseLotsPolygons(
     kmlText: string,
@@ -38,26 +45,30 @@ export class ProjectLotKmlParserService {
         'No polygons found in Lotes (poligonos) folder',
       );
     }
-    const lons = polygons.map((p) => p.centroidLon);
-    const midLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+    const needsGeoStage = polygons.some((poly) => poly.stageKey === null);
+    const midLon = needsGeoStage
+      ? (Math.min(...polygons.map((p) => p.centroidLon)) +
+          Math.max(...polygons.map((p) => p.centroidLon))) /
+        2
+      : 0;
     const westKey = swapStages ? '2' : '1';
     const eastKey = swapStages ? '1' : '2';
-    const westName = `Etapa ${westKey}`;
-    const eastName = `Etapa ${eastKey}`;
-    const westOrder = Number(westKey);
-    const eastOrder = Number(eastKey);
     const features: LotMapGeoJsonFeature[] = polygons.map((poly) => {
-      const isWest = poly.centroidLon < midLon;
-      const stageKey = isWest ? westKey : eastKey;
-      const stageName = isWest ? westName : eastName;
-      const stageOrder = isWest ? westOrder : eastOrder;
+      const stageKey = this.resolveStageKey({
+        explicitStageKey: poly.stageKey,
+        centroidLon: poly.centroidLon,
+        midLon,
+        westKey,
+        eastKey,
+        swapStages,
+      });
       return {
         type: 'Feature',
         properties: {
           lotNumber: poly.lotNumber,
           stageKey,
-          stageName,
-          stageOrder,
+          stageName: `Etapa ${stageKey}`,
+          stageOrder: Number(stageKey) || 0,
         },
         geometry: {
           type: 'Polygon',
@@ -66,6 +77,34 @@ export class ProjectLotKmlParserService {
       };
     });
     return { type: 'FeatureCollection', features };
+  }
+
+  private resolveStageKey(params: {
+    readonly explicitStageKey: string | null;
+    readonly centroidLon: number;
+    readonly midLon: number;
+    readonly westKey: string;
+    readonly eastKey: string;
+    readonly swapStages: boolean;
+  }): string {
+    if (params.explicitStageKey !== null) {
+      return this.applyStageSwap(params.explicitStageKey, params.swapStages);
+    }
+    const isWest = params.centroidLon < params.midLon;
+    return isWest ? params.westKey : params.eastKey;
+  }
+
+  private applyStageSwap(stageKey: string, swapStages: boolean): string {
+    if (!swapStages) {
+      return stageKey;
+    }
+    if (stageKey === '1') {
+      return '2';
+    }
+    if (stageKey === '2') {
+      return '1';
+    }
+    return stageKey;
   }
 
   private extractFolderXml(kmlText: string, folderName: string): string | null {
@@ -86,12 +125,12 @@ export class ProjectLotKmlParserService {
         continue;
       }
       const nameMatch = placemark.match(/<name>([\s\S]*?)<\/name>/i);
-      const lotNumberRaw = (nameMatch?.[1] ?? '').trim();
-      if (!lotNumberRaw || lotNumberRaw.startsWith('sin-numero')) {
+      const nameRaw = (nameMatch?.[1] ?? '').trim();
+      if (!nameRaw || nameRaw.toLowerCase().startsWith('sin-numero')) {
         continue;
       }
-      const lotNumber = this.normalizeLotNumber(lotNumberRaw);
-      if (!lotNumber) {
+      const identity = this.resolveLotIdentity(placemark, nameRaw);
+      if (!identity.lotNumber) {
         continue;
       }
       const coordsMatch = placemark.match(
@@ -107,13 +146,53 @@ export class ProjectLotKmlParserService {
       const closedRing = this.ensureClosedRing(ring);
       const centroid = this.computeCentroid(closedRing);
       polygons.push({
-        lotNumber,
+        lotNumber: identity.lotNumber,
+        stageKey: identity.stageKey,
         ring: closedRing,
         centroidLon: centroid.lon,
         centroidLat: centroid.lat,
       });
     }
     return polygons;
+  }
+
+  /**
+   * Prefers ExtendedData, then `{stage}-{lot}` name, else legacy plain lot number.
+   */
+  private resolveLotIdentity(
+    placemark: string,
+    nameRaw: string,
+  ): { lotNumber: string; stageKey: string | null } {
+    const stageFromData = this.readSimpleData(placemark, 'stageKey');
+    const lotFromData = this.readSimpleData(placemark, 'lotNumber');
+    if (stageFromData && lotFromData) {
+      return {
+        stageKey: this.normalizeStageKey(stageFromData),
+        lotNumber: this.normalizeLotNumber(lotFromData),
+      };
+    }
+    const stageLotMatch = nameRaw.match(STAGE_LOT_NAME_REGEX);
+    if (stageLotMatch) {
+      return {
+        stageKey: this.normalizeStageKey(stageLotMatch[1]),
+        lotNumber: this.normalizeLotNumber(stageLotMatch[2]),
+      };
+    }
+    return {
+      stageKey: null,
+      lotNumber: this.normalizeLotNumber(nameRaw),
+    };
+  }
+
+  private readSimpleData(placemark: string, fieldName: string): string | null {
+    const escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(
+      `<SimpleData\\s+name="${escaped}"\\s*>([\\s\\S]*?)<\\/SimpleData>`,
+      'i',
+    );
+    const match = placemark.match(regex);
+    const value = (match?.[1] ?? '').trim();
+    return value !== '' ? value : null;
   }
 
   private parseCoordinates(raw: string): Array<[number, number]> {
@@ -160,6 +239,15 @@ export class ProjectLotKmlParserService {
     const lat =
       points.reduce((sum, point) => sum + point[1], 0) / points.length;
     return { lon, lat };
+  }
+
+  private normalizeStageKey(raw: string): string {
+    const trimmed = raw.trim();
+    const digitMatch = trimmed.match(/(\d+)/);
+    if (digitMatch) {
+      return String(parseInt(digitMatch[1], 10));
+    }
+    return trimmed.toLowerCase().replace(/\s+/g, '-') || 'default';
   }
 
   private normalizeLotNumber(raw: string): string {

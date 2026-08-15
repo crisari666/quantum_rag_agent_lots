@@ -11,15 +11,18 @@ Related API: `md_files/project-lots-endpoints.md`. Collection: `project_lots` (`
 
 Do **not** store status in the KML as source of truth. Status lives in Mongo. Paint at read/render time.
 
-## KML contract (already in the generated file)
+## KML contract (Valle del Sol / stage-lot nomenclature)
 
 Each lot Placemark:
 
-- `name` = lot `number` (string, e.g. `"12"`)
+- `name` = `{stageKey}-{lotNumber}` (e.g. `"1-12"`, `"2-3"`)
 - `styleUrl` = `#status-{status}`
 - `ExtendedData` / `LotSchema`:
-  - `lotNumber` — same as `name`
+  - `lotNumber` — lot number only (e.g. `"12"`)
+  - `stageKey` — stage id (`"1"` / `"2"`)
   - `status` — `default` | `available` | `hold` | `locked` | `sold`
+
+Parser priority: ExtendedData → name `stage-lot` → legacy plain number + west/east centroid.
 
 Initial export: all lots `status=default`, `styleUrl=#status-default` (white faded).
 
@@ -46,11 +49,9 @@ Lot fields needed: `number`, `status`, `kind`, `stageKey`, `stageName`, `holdUnt
 
 Join: `kml.lotNumber` → `project_lots.number` where `kind=lot`.
 
-### Duplicate numbers (blocking if ignored)
+### Stages and duplicate numbers
 
-KML has **361** polygons, **310** unique numbers (`1`–`311`). Numbers **`1`–`51` appear twice** (two manzanas). DB uniqueness already requires `stageKey`. The KML **does not yet have `stageKey`**.
-
-Before painting: map each duplicate polygon to a stage (e.g. by centroid cluster, or add `stageKey` to ExtendedData). Join key must be `{ number, stageKey }`, never `number` alone.
+Join key must be `{ number, stageKey }`, never `number` alone. Current Valle del Sol KML uses names `1-*` / `2-*` plus ExtendedData `stageKey`/`lotNumber` (e.g. stage 1 ≈ 310 lots, stage 2 ≈ 51).
 
 ## Suggested paint flow
 
@@ -65,7 +66,7 @@ Do not duplicate status onto polygon documents. Geometry is static; status is li
 ## Out of scope / not done
 
 - ~~KML is not uploaded to a project yet (no `kml`/`geojson` field on `Project`).~~ **Done:** `lotsMapKml` / `lotsMapGeojson` + `POST .../lots/map/kml`.
-- ~~Polygons have no `stageKey` / `lotId`.~~ **Done on upload:** west/east → stageKey `1`/`2`; paint attaches `lotId` live.
+- ~~Polygons have no `stageKey` / `lotId`.~~ **Done on upload:** ExtendedData or `1-N`/`2-N` names → stageKey; legacy west/east fallback; paint attaches `lotId` live.
 - Open CAD lines (vías) are in folder `Lineas abiertas` (hidden); ignore for stock.
 - 5 closed rings have no marker (`sin-numero-*`); not lots.
 

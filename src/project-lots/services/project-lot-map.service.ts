@@ -11,6 +11,7 @@ import { Model, Types } from 'mongoose';
 import { ProjectImageStorageService } from '../../projects/services/project-image-storage.service';
 import { ProjectsService } from '../../projects/projects.service';
 import {
+  DEFAULT_STAGE_KEY,
   ProjectLot,
   ProjectLotDocument,
 } from '../schemas/project-lot.schema';
@@ -126,8 +127,7 @@ export class ProjectLotMapService {
     }
     let matchedCount = 0;
     const features: LotMapGeoJsonFeature[] = geojson.features.map((feature) => {
-      const key = `${feature.properties.stageKey}::${feature.properties.lotNumber}`;
-      const lot = byKey.get(key);
+      const lot = this.resolveLotForFeature(byKey, feature);
       if (!lot) {
         return {
           ...feature,
@@ -227,7 +227,15 @@ export class ProjectLotMapService {
     const seen = new Set<string>();
     for (const feature of params.geojson.features) {
       const key = `${feature.properties.stageKey}::${feature.properties.lotNumber}`;
-      if (existingKeys.has(key) || seen.has(key)) {
+      const defaultAliasKey =
+        feature.properties.stageKey === '1'
+          ? `${DEFAULT_STAGE_KEY}::${feature.properties.lotNumber}`
+          : null;
+      if (
+        existingKeys.has(key) ||
+        (defaultAliasKey !== null && existingKeys.has(defaultAliasKey)) ||
+        seen.has(key)
+      ) {
         continue;
       }
       seen.add(key);
@@ -251,6 +259,37 @@ export class ProjectLotMapService {
     }
     await this.projectLotModel.insertMany(toCreate);
     return toCreate.length;
+  }
+
+  /**
+   * Join map polygon → inventory lot.
+   * Exact `${stageKey}::${number}` first; stage `1` also tries legacy `default`.
+   * If both exist, prefer the non-available row (Excel sold/hold/locked over KML upsert).
+   */
+  private resolveLotForFeature(
+    byKey: Map<string, ProjectLotDocument>,
+    feature: LotMapGeoJsonFeature,
+  ): ProjectLotDocument | undefined {
+    const number = feature.properties.lotNumber;
+    const stageKey = feature.properties.stageKey;
+    const exact = byKey.get(`${stageKey}::${number}`);
+    const legacyDefault =
+      stageKey === '1'
+        ? byKey.get(`${DEFAULT_STAGE_KEY}::${number}`)
+        : undefined;
+    if (!exact) {
+      return legacyDefault;
+    }
+    if (!legacyDefault) {
+      return exact;
+    }
+    if (
+      exact.status === ProjectLotStatus.available &&
+      legacyDefault.status !== ProjectLotStatus.available
+    ) {
+      return legacyDefault;
+    }
+    return exact;
   }
 
   private sanitizeProjectName(title: string): string {
