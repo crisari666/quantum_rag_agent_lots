@@ -17,3 +17,14 @@ Levels: **admin** `0`, **subadmin** `1`, **content** `9`.
 Unique lot key: `{ projectId, kind, stageKey, number }`.
 
 Project inventory config fields (PATCH `/projects/:id`): `nLots`, `nCommercialSpaces`, `baseLotArea`, `baseCommercialArea`, `defaultLotPrice`, `defaultCommercialPrice`.
+
+### Lot map (KML → GeoJSON)
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| POST | `/projects/:projectId/lots/map/kml` | admin/subadmin | multipart `file` (.kml) + optional form `swapStages=true`. Saves KML + GeoJSON on project (`lotsMapKml`, `lotsMapGeojson`). Assigns west→stage `1`, east→stage `2` by centroid lon. Upserts missing `project_lots` only. |
+| GET | `/projects/:projectId/lots/map` | admin/subadmin/content | Painted FeatureCollection: each feature gets live `status`, `lotId`, area, price, ventorName, holdUntil, soldBy, stage*. |
+| GET | `/projects/:projectId/lots/map/public` | **public** | Same paint without `soldBy`. |
+| DELETE | `/projects/:projectId/lots/map` | admin/subadmin | Clears map asset filenames and deletes files. |
+
+Join key for paint: `` `${stageKey}::${lotNumber}` ``. Unmatched polygons → `status: null` (default style).

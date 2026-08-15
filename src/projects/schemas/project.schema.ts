@@ -178,6 +178,14 @@ export class Project {
   @Prop({ default: 0, min: 0 })
   defaultCommercialPrice: number;
 
+  /** Uploaded lot-map KML filename under project images uploads. */
+  @Prop({ trim: true, default: '' })
+  lotsMapKml: string;
+
+  /** Derived GeoJSON FeatureCollection filename for lot polygons. */
+  @Prop({ trim: true, default: '' })
+  lotsMapGeojson: string;
+
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

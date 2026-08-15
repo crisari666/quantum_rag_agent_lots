@@ -123,6 +123,7 @@ export class ProjectLotsService implements OnModuleInit {
       .find(filter)
       .sort({ kind: 1, stageOrder: 1, stageKey: 1, number: 1 })
       .exec();
+    lots.sort((a, b) => this.compareLotsByStageAndNumber(a, b));
     const summary = await this.buildSummaryForProject(projectId);
     return { lots, summary };
   }
@@ -447,6 +448,13 @@ export class ProjectLotsService implements OnModuleInit {
       .sort({ projectId: 1, kind: 1, stageOrder: 1, stageKey: 1, number: 1 })
       .limit(500)
       .exec();
+    lots.sort((a, b) => {
+      const projectDiff = String(a.projectId).localeCompare(String(b.projectId));
+      if (projectDiff !== 0) {
+        return projectDiff;
+      }
+      return this.compareLotsByStageAndNumber(a, b);
+    });
     return lots.map((lot) => ({
       projectId: String(lot.projectId),
       kind: lot.kind,
@@ -536,6 +544,37 @@ export class ProjectLotsService implements OnModuleInit {
   private normalizeStageKey(raw: string): string {
     const trimmed = raw.trim().toLowerCase().replace(/\s+/g, '-');
     return trimmed === '' ? DEFAULT_STAGE_KEY : trimmed;
+  }
+
+  private compareLotsByStageAndNumber(
+    a: {
+      kind: string;
+      stageOrder?: number;
+      stageKey?: string;
+      number: string;
+    },
+    b: {
+      kind: string;
+      stageOrder?: number;
+      stageKey?: string;
+      number: string;
+    },
+  ): number {
+    if (a.kind !== b.kind) {
+      return a.kind.localeCompare(b.kind);
+    }
+    const orderDiff =
+      (a.stageOrder ?? DEFAULT_STAGE_ORDER) -
+      (b.stageOrder ?? DEFAULT_STAGE_ORDER);
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+    const stageKeyA = a.stageKey ?? DEFAULT_STAGE_KEY;
+    const stageKeyB = b.stageKey ?? DEFAULT_STAGE_KEY;
+    if (stageKeyA !== stageKeyB) {
+      return stageKeyA.localeCompare(stageKeyB);
+    }
+    return a.number.localeCompare(b.number, undefined, { numeric: true });
   }
 
   private normalizeStageName(raw: string, stageKey: string): string {

@@ -10,6 +10,7 @@ import { UPLOADS_STATIC_URL_PREFIX } from '../../config/upload-bucket.constants'
 const RAG_PREFIX = '/rag';
 const PATCH_PROJECT_UPDATE_REGEX = /^\/rag\/projects\/[^/]+$/;
 const PUBLIC_PROJECT_LOTS_REGEX = /^\/rag\/projects\/[^/]+\/lots\/public$/;
+const PUBLIC_PROJECT_LOTS_MAP_REGEX = /^\/rag\/projects\/[^/]+\/lots\/map\/public$/;
 const BEARER_PREFIX_REGEX = /^Bearer\s+/i;
 
 /**
@@ -77,6 +78,9 @@ export class TokenJwtMiddleware implements NestMiddleware {
       return true;
     }
     if (req.method === 'GET' && PUBLIC_PROJECT_LOTS_REGEX.test(normalized)) {
+      return true;
+    }
+    if (req.method === 'GET' && PUBLIC_PROJECT_LOTS_MAP_REGEX.test(normalized)) {
       return true;
     }
     if (req.method === 'PATCH' && PATCH_PROJECT_UPDATE_REGEX.test(normalized)) {

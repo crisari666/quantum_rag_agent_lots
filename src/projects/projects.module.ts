@@ -23,6 +23,6 @@ import { OfficeLevelGuard } from '../core/guards/office-level.guard';
     ProjectDocumentUploadService,
     OfficeLevelGuard,
   ],
-  exports: [ProjectsService, ImageCompressionService],
+  exports: [ProjectsService, ImageCompressionService, ProjectImageStorageService],
 })
 export class ProjectsModule {}

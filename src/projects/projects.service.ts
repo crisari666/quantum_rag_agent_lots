@@ -334,6 +334,32 @@ export class ProjectsService {
   }
 
   /**
+   * Sets or clears lot-map KML/GeoJSON filenames on the project.
+   */
+  public async setLotsMapFiles(
+    projectId: string,
+    files: { readonly lotsMapKml: string; readonly lotsMapGeojson: string },
+  ): Promise<ProjectDocument> {
+    const updated = await this.projectModel
+      .findOneAndUpdate(
+        { _id: projectId, deleted: false },
+        {
+          $set: {
+            lotsMapKml: files.lotsMapKml,
+            lotsMapGeojson: files.lotsMapGeojson,
+          },
+        },
+        { new: true },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return updated;
+  }
+
+  /**
    * Ensures slug is not used by another non-deleted project.
    */
   private async ensureProjectSlugAvailable(

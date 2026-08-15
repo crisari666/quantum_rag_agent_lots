@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -33,6 +34,7 @@ import {
   UpdateProjectLotDto,
 } from './dto/project-lot.dto';
 import { ProjectLotsService } from './project-lots.service';
+import { ProjectLotMapService } from './services/project-lot-map.service';
 import { ProjectLotKind } from './types/project-lot.enums';
 
 const ADMIN_LEVELS = [
@@ -51,7 +53,10 @@ const CONTENT_AND_ADMIN_LEVELS = [
 @Controller('projects')
 @UseGuards(OfficeLevelGuard)
 export class ProjectLotsController {
-  public constructor(private readonly projectLotsService: ProjectLotsService) {}
+  public constructor(
+    private readonly projectLotsService: ProjectLotsService,
+    private readonly projectLotMapService: ProjectLotMapService,
+  ) {}
 
   @Get(':projectId/lots/public')
   @ApiOperation({
@@ -80,6 +85,97 @@ export class ProjectLotsController {
       this.parseKindFilter(kind),
       stage,
     );
+  }
+
+  @Get(':projectId/lots/map/public')
+  @ApiOperation({
+    summary:
+      'Public painted lot map GeoJSON (live status join). No soldBy.',
+  })
+  @ApiParam({ name: 'projectId' })
+  public getMapPublic(@Param('projectId') projectId: string) {
+    return this.projectLotMapService.getPaintedMap(projectId, {
+      includeSoldBy: false,
+    });
+  }
+
+  @Get(':projectId/lots/map')
+  @Roles(...CONTENT_AND_ADMIN_LEVELS)
+  @ApiOperation({
+    summary: 'Painted lot map GeoJSON joined with live inventory status',
+  })
+  @ApiParam({ name: 'projectId' })
+  public getMap(@Param('projectId') projectId: string) {
+    return this.projectLotMapService.getPaintedMap(projectId, {
+      includeSoldBy: true,
+    });
+  }
+
+  @Post(':projectId/lots/map/kml')
+  @Roles(...ADMIN_LEVELS)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 40 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        const name = (file.originalname ?? '').toLowerCase();
+        const ok =
+          name.endsWith('.kml') ||
+          file.mimetype.includes('xml') ||
+          file.mimetype.includes('kml') ||
+          file.mimetype === 'application/vnd.google-earth.kml+xml';
+        if (ok) callback(null, true);
+        else
+          callback(
+            new BadRequestException('Only .kml files are allowed'),
+            false,
+          );
+      },
+    }),
+  )
+  @ApiOperation({
+    summary:
+      'Upload lot polygons KML, convert to GeoJSON with west/east stages, upsert missing lots',
+  })
+  @ApiParam({ name: 'projectId' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        swapStages: {
+          type: 'string',
+          description: 'Optional "true" to flip west/east stage labels',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  public uploadMapKml(
+    @Param('projectId') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('swapStages') swapStages?: string,
+  ) {
+    if (!file?.buffer) {
+      throw new BadRequestException('No file uploaded');
+    }
+    const swap =
+      typeof swapStages === 'string' &&
+      ['1', 'true', 'yes'].includes(swapStages.trim().toLowerCase());
+    return this.projectLotMapService.uploadKml({
+      projectId,
+      buffer: file.buffer,
+      originalName: file.originalname ?? 'lots.kml',
+      swapStages: swap,
+    });
+  }
+
+  @Delete(':projectId/lots/map')
+  @Roles(...ADMIN_LEVELS)
+  @ApiOperation({ summary: 'Clear lot map KML/GeoJSON assets from project' })
+  @ApiParam({ name: 'projectId' })
+  public clearMap(@Param('projectId') projectId: string) {
+    return this.projectLotMapService.clearMap(projectId);
   }
 
   @Post(':projectId/lots/generate')
