@@ -147,6 +147,7 @@ export class ProjectsController {
   @Roles(
     OFFICE_USER_LEVEL.admin,
     OFFICE_USER_LEVEL.subadmin,
+    OFFICE_USER_LEVEL.commercialDirector,
     OFFICE_USER_LEVEL.content,
   )
   @ApiOperation({

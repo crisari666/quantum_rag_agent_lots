@@ -12,12 +12,14 @@ export type LotKindSummary = Readonly<{
 }>;
 
 export type PublicProjectLot = Readonly<{
+  id: string;
   number: string;
   area: number;
   price: number;
   status: string;
   kind: string;
   ventorName: string;
+  heldByUserId: string;
   holdUntil: string | null;
   stageKey: string;
   stageName: string;

@@ -1,15 +1,20 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   OnModuleInit,
+  UnauthorizedException,
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { OFFICE_USER_LEVEL } from '../core/constants/office-user-level.constants';
 import { ProjectsService } from '../projects/projects.service';
 import { ProjectDocument } from '../projects/schemas/project.schema';
+import { HoldProjectLotDto } from './dto/hold-project-lot.dto';
 import {
   BulkUpdateLotStatusDto,
   GenerateProjectLotsDto,
@@ -30,6 +35,10 @@ import type {
   PublicProjectLot,
 } from './types/project-lot-summary.type';
 import { ProjectLotExcelParserService } from './services/project-lot-excel-parser.service';
+import { ProjectLotStatusLogService } from './services/project-lot-status-log.service';
+import { ProjectLotStatusLogAction } from './types/project-lot-status-log.enums';
+import { ProjectImageStorageService } from '../projects/services/project-image-storage.service';
+import { ProjectLotStatusLogDocument } from './schemas/project-lot-status-log.schema';
 
 export type ListLotsResult = Readonly<{
   lots: ProjectLotDocument[];
@@ -57,6 +66,7 @@ export type GenerateLotsResult = Readonly<{
 }>;
 
 const HOLD_DEFAULT_MS = 24 * 60 * 60 * 1000;
+const HOLD_EXTERNAL_AGENT_MS = 72 * 60 * 60 * 1000;
 
 /**
  * Inventory of physical lots and commercial spaces per project.
@@ -69,6 +79,9 @@ export class ProjectLotsService implements OnModuleInit {
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
     private readonly excelParser: ProjectLotExcelParserService,
+    private readonly statusLogService: ProjectLotStatusLogService,
+    @Inject(forwardRef(() => ProjectImageStorageService))
+    private readonly imageStorageService: ProjectImageStorageService,
   ) {}
 
   public async onModuleInit(): Promise<void> {
@@ -128,6 +141,38 @@ export class ProjectLotsService implements OnModuleInit {
     return { lots, summary };
   }
 
+  /**
+   * Deletes all inventory units for a project so Excel can be re-imported.
+   */
+  public async deleteInventory(
+    projectId: string,
+    kind: ProjectLotKind | 'all' = 'all',
+  ): Promise<{ deletedLots: number; deletedLogs: number }> {
+    await this.projectsService.getById(projectId);
+    const lotFilter: Record<string, unknown> = {
+      projectId: new Types.ObjectId(projectId),
+    };
+    if (kind !== 'all') {
+      lotFilter.kind = kind;
+    }
+    const lots = await this.projectLotModel.find(lotFilter).select('_id').exec();
+    const lotIds = lots.map((lot) => lot._id);
+    const lotsResult = await this.projectLotModel.deleteMany(lotFilter).exec();
+    let deletedLogs = 0;
+    if (kind === 'all') {
+      deletedLogs = await this.statusLogService.deleteByProject(projectId);
+    } else if (lotIds.length > 0) {
+      deletedLogs = await this.statusLogService.deleteByLotIds({
+        projectId,
+        lotIds: lotIds.map((id) => String(id)),
+      });
+    }
+    return {
+      deletedLots: lotsResult.deletedCount,
+      deletedLogs,
+    };
+  }
+
   public async listPublic(
     projectId: string,
     kind: ProjectLotKind | 'all' = 'all',
@@ -144,12 +189,14 @@ export class ProjectLotsService implements OnModuleInit {
       projectTitle: project.title,
       summary,
       lots: lots.map((lot) => ({
+        id: String(lot._id),
         number: lot.number,
         area: lot.area,
         price: lot.price,
         status: lot.status,
         kind: lot.kind,
         ventorName: lot.ventorName ?? '',
+        heldByUserId: lot.heldByUserId ?? '',
         holdUntil: lot.holdUntil ? lot.holdUntil.toISOString() : null,
         stageKey: lot.stageKey ?? DEFAULT_STAGE_KEY,
         stageName: lot.stageName ?? DEFAULT_STAGE_NAME,
@@ -225,6 +272,7 @@ export class ProjectLotsService implements OnModuleInit {
     projectId: string,
     lotId: string,
     dto: UpdateProjectLotDto,
+    actor?: { readonly userId: string; readonly level?: number },
   ): Promise<ProjectLotDocument> {
     await this.projectsService.getById(projectId);
     await this.releaseExpiredHolds(projectId);
@@ -260,6 +308,7 @@ export class ProjectLotsService implements OnModuleInit {
       setPayload.holdUntil = this.resolveHoldUntil(dto.holdUntil);
     } else if (dto.status !== undefined || dto.holdUntil !== undefined) {
       setPayload.holdUntil = null;
+      setPayload.heldByUserId = '';
     }
     const update: Record<string, unknown> = {};
     if (Object.keys(setPayload).length > 0) {
@@ -280,18 +329,38 @@ export class ProjectLotsService implements OnModuleInit {
         `Lot ${lotId} not found in project ${projectId}`,
       );
     }
+    if (dto.status !== undefined && existing.status !== lot.status) {
+      await this.statusLogService.append({
+        projectId,
+        lotId: String(lot._id),
+        number: lot.number,
+        fromStatus: existing.status,
+        toStatus: lot.status,
+        action: ProjectLotStatusLogAction.update,
+        actorUserId: actor?.userId ?? '',
+        actorLevel: actor?.level,
+      });
+    }
     return lot;
   }
 
   public async bulkUpdateStatus(
     projectId: string,
     dto: BulkUpdateLotStatusDto,
+    actor?: { readonly userId: string; readonly level?: number },
   ): Promise<{ modifiedCount: number }> {
     await this.projectsService.getById(projectId);
     await this.releaseExpiredHolds(projectId);
     if (!dto.lotIds?.length) {
       throw new BadRequestException('lotIds must not be empty');
     }
+    const objectIds = dto.lotIds.map((id) => new Types.ObjectId(id));
+    const beforeLots = await this.projectLotModel
+      .find({
+        projectId: new Types.ObjectId(projectId),
+        _id: { $in: objectIds },
+      })
+      .exec();
     const setPayload: Record<string, unknown> = { status: dto.status };
     if (dto.ventorName !== undefined) {
       setPayload.ventorName = dto.ventorName.trim();
@@ -303,18 +372,32 @@ export class ProjectLotsService implements OnModuleInit {
       setPayload.holdUntil = this.resolveHoldUntil(dto.holdUntil);
     } else {
       setPayload.holdUntil = null;
+      setPayload.heldByUserId = '';
     }
     const result = await this.projectLotModel
       .updateMany(
         {
           projectId: new Types.ObjectId(projectId),
-          _id: {
-            $in: dto.lotIds.map((id) => new Types.ObjectId(id)),
-          },
+          _id: { $in: objectIds },
         },
         { $set: setPayload },
       )
       .exec();
+    const changed = beforeLots.filter((lot) => lot.status !== dto.status);
+    await Promise.all(
+      changed.map((lot) =>
+        this.statusLogService.append({
+          projectId,
+          lotId: String(lot._id),
+          number: lot.number,
+          fromStatus: lot.status,
+          toStatus: dto.status,
+          action: ProjectLotStatusLogAction.bulk,
+          actorUserId: actor?.userId ?? '',
+          actorLevel: actor?.level,
+        }),
+      ),
+    );
     return { modifiedCount: result.modifiedCount };
   }
 
@@ -610,11 +693,311 @@ export class ProjectLotsService implements OnModuleInit {
     if (projectId) {
       filter.projectId = new Types.ObjectId(projectId);
     }
+    const expired = await this.projectLotModel.find(filter).exec();
+    if (expired.length === 0) {
+      return;
+    }
     await this.projectLotModel
       .updateMany(filter, {
-        $set: { status: ProjectLotStatus.available, holdUntil: null },
+        $set: {
+          status: ProjectLotStatus.available,
+          holdUntil: null,
+          heldByUserId: '',
+        },
       })
       .exec();
+    await Promise.all(
+      expired.map((lot) =>
+        this.statusLogService.append({
+          projectId: String(lot.projectId),
+          lotId: String(lot._id),
+          number: lot.number,
+          fromStatus: ProjectLotStatus.hold,
+          toStatus: ProjectLotStatus.available,
+          action: ProjectLotStatusLogAction.expire,
+          actorUserId: '',
+          actorLevel: 'system',
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Places a hold on an available lot. External agents default 72h; ventors 24h.
+   */
+  public async holdAvailableLot(params: {
+    readonly projectId: string;
+    readonly lotId: string;
+    readonly actorUserId: string;
+    readonly actorLevel?: number;
+    readonly dto: HoldProjectLotDto;
+  }): Promise<ProjectLotDocument> {
+    await this.projectsService.getById(params.projectId);
+    await this.releaseExpiredHolds(params.projectId);
+    const actorUserId = params.actorUserId.trim();
+    if (actorUserId === '') {
+      throw new UnauthorizedException('JWT payload is missing userId');
+    }
+    const existing = await this.projectLotModel
+      .findOne({
+        _id: params.lotId,
+        projectId: new Types.ObjectId(params.projectId),
+      })
+      .exec();
+    if (!existing) {
+      throw new NotFoundException(
+        `Lot ${params.lotId} not found in project ${params.projectId}`,
+      );
+    }
+    if (existing.status !== ProjectLotStatus.available) {
+      throw new ConflictException(
+        `Lot ${existing.number} is not available to hold`,
+      );
+    }
+    const useLongHold = params.actorLevel === OFFICE_USER_LEVEL.externalAgent;
+    const holdUntil = useLongHold
+      ? this.resolveExternalAgentHoldUntil(params.dto.holdUntil)
+      : this.resolveHoldUntil(params.dto.holdUntil);
+    const ventorName = (params.dto.ventorName ?? '').trim();
+    const lot = await this.projectLotModel
+      .findOneAndUpdate(
+        {
+          _id: params.lotId,
+          projectId: new Types.ObjectId(params.projectId),
+          status: ProjectLotStatus.available,
+        },
+        {
+          $set: {
+            status: ProjectLotStatus.hold,
+            holdUntil,
+            heldByUserId: actorUserId,
+            ...(ventorName !== '' ? { ventorName } : {}),
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!lot) {
+      throw new ConflictException(
+        `Lot ${existing.number} is not available to hold`,
+      );
+    }
+    await this.statusLogService.append({
+      projectId: params.projectId,
+      lotId: String(lot._id),
+      number: lot.number,
+      fromStatus: ProjectLotStatus.available,
+      toStatus: ProjectLotStatus.hold,
+      action: ProjectLotStatusLogAction.hold,
+      actorUserId,
+      actorLevel: params.actorLevel,
+    });
+    return lot;
+  }
+
+  /**
+   * Releases a hold placed by the same JWT user. Admins may unhold any hold.
+   */
+  public async unholdHeldLot(params: {
+    readonly projectId: string;
+    readonly lotId: string;
+    readonly actorUserId: string;
+    readonly actorLevel?: number;
+  }): Promise<ProjectLotDocument> {
+    await this.projectsService.getById(params.projectId);
+    await this.releaseExpiredHolds(params.projectId);
+    const actorUserId = params.actorUserId.trim();
+    if (actorUserId === '') {
+      throw new UnauthorizedException('JWT payload is missing userId');
+    }
+    const existing = await this.projectLotModel
+      .findOne({
+        _id: params.lotId,
+        projectId: new Types.ObjectId(params.projectId),
+      })
+      .exec();
+    if (!existing) {
+      throw new NotFoundException(
+        `Lot ${params.lotId} not found in project ${params.projectId}`,
+      );
+    }
+    if (existing.status !== ProjectLotStatus.hold) {
+      throw new ConflictException(`Lot ${existing.number} is not on hold`);
+    }
+    const isAdmin = params.actorLevel === OFFICE_USER_LEVEL.admin;
+    if (!isAdmin && (existing.heldByUserId ?? '') !== actorUserId) {
+      throw new ForbiddenException(
+        'Only the user who reserved this lot can release the hold',
+      );
+    }
+    const lot = await this.projectLotModel
+      .findOneAndUpdate(
+        {
+          _id: params.lotId,
+          projectId: new Types.ObjectId(params.projectId),
+          status: ProjectLotStatus.hold,
+        },
+        {
+          $set: {
+            status: ProjectLotStatus.available,
+            holdUntil: null,
+            heldByUserId: '',
+            ventorName: '',
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!lot) {
+      throw new ConflictException(`Lot ${existing.number} is not on hold`);
+    }
+    await this.statusLogService.append({
+      projectId: params.projectId,
+      lotId: String(lot._id),
+      number: lot.number,
+      fromStatus: ProjectLotStatus.hold,
+      toStatus: ProjectLotStatus.available,
+      action: ProjectLotStatusLogAction.unhold,
+      actorUserId,
+      actorLevel: params.actorLevel,
+    });
+    return lot;
+  }
+
+  public async listLotHistory(params: {
+    readonly projectId: string;
+    readonly lotId: string;
+  }): Promise<ProjectLotStatusLogDocument[]> {
+    await this.projectsService.getById(params.projectId);
+    const existing = await this.projectLotModel
+      .findOne({
+        _id: params.lotId,
+        projectId: new Types.ObjectId(params.projectId),
+      })
+      .exec();
+    if (!existing) {
+      throw new NotFoundException(
+        `Lot ${params.lotId} not found in project ${params.projectId}`,
+      );
+    }
+    return this.statusLogService.listByLot(params);
+  }
+
+  /**
+   * Returns a sold lot to available with required evidence files.
+   */
+  public async desistSoldLot(params: {
+    readonly projectId: string;
+    readonly lotId: string;
+    readonly actorUserId: string;
+    readonly actorLevel?: number;
+    readonly note?: string;
+    readonly files: Express.Multer.File[];
+  }): Promise<ProjectLotDocument> {
+    await this.projectsService.getById(params.projectId);
+    await this.releaseExpiredHolds(params.projectId);
+    const actorUserId = params.actorUserId.trim();
+    if (actorUserId === '') {
+      throw new UnauthorizedException('JWT payload is missing userId');
+    }
+    if (!params.files?.length) {
+      throw new BadRequestException('At least one evidence file is required');
+    }
+    const existing = await this.projectLotModel
+      .findOne({
+        _id: params.lotId,
+        projectId: new Types.ObjectId(params.projectId),
+      })
+      .exec();
+    if (!existing) {
+      throw new NotFoundException(
+        `Lot ${params.lotId} not found in project ${params.projectId}`,
+      );
+    }
+    if (existing.status !== ProjectLotStatus.sold) {
+      throw new ConflictException(
+        `Lot ${existing.number} is not sold and cannot be desisted`,
+      );
+    }
+    const evidenceFiles: string[] = [];
+    for (const [index, file] of params.files.entries()) {
+      const extension = this.resolveEvidenceExtension(file);
+      const fileName = `lot_desist_${existing.number}_${Date.now()}_${index}.${extension}`;
+      await this.imageStorageService.saveFile(file.buffer, fileName);
+      evidenceFiles.push(fileName);
+    }
+    const lot = await this.projectLotModel
+      .findOneAndUpdate(
+        {
+          _id: params.lotId,
+          projectId: new Types.ObjectId(params.projectId),
+          status: ProjectLotStatus.sold,
+        },
+        {
+          $set: {
+            status: ProjectLotStatus.available,
+            soldBy: '',
+            holdUntil: null,
+            heldByUserId: '',
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!lot) {
+      throw new ConflictException(
+        `Lot ${existing.number} is not sold and cannot be desisted`,
+      );
+    }
+    await this.statusLogService.append({
+      projectId: params.projectId,
+      lotId: String(lot._id),
+      number: lot.number,
+      fromStatus: ProjectLotStatus.sold,
+      toStatus: ProjectLotStatus.available,
+      action: ProjectLotStatusLogAction.desist,
+      actorUserId,
+      actorLevel: params.actorLevel,
+      note: params.note,
+      evidenceFiles,
+    });
+    return lot;
+  }
+
+  private resolveEvidenceExtension(file: Express.Multer.File): string {
+    const name = (file.originalname ?? '').toLowerCase();
+    if (name.endsWith('.pdf')) return 'pdf';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'jpg';
+    if (name.endsWith('.png')) return 'png';
+    if (name.endsWith('.webp')) return 'webp';
+    const mime = (file.mimetype ?? '').toLowerCase();
+    if (mime === 'application/pdf') return 'pdf';
+    if (mime === 'image/jpeg') return 'jpg';
+    if (mime === 'image/png') return 'png';
+    if (mime === 'image/webp') return 'webp';
+    throw new BadRequestException(
+      'Evidence files must be pdf, jpg, png, or webp',
+    );
+  }
+
+  /**
+   * Resolves holdUntil for external agents: default now+72h; custom must be at least 72h ahead.
+   */
+  private resolveExternalAgentHoldUntil(raw?: string): Date {
+    const minimum = new Date(Date.now() + HOLD_EXTERNAL_AGENT_MS);
+    if (raw === undefined || raw.trim() === '') {
+      return minimum;
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException('holdUntil must be a valid ISO datetime');
+    }
+    if (parsed.getTime() < minimum.getTime()) {
+      throw new BadRequestException(
+        'holdUntil must be at least 72 hours from now',
+      );
+    }
+    return parsed;
   }
 
   private defaultHoldUntil(): Date {

@@ -67,6 +67,10 @@ export class ProjectLot {
    */
   @Prop({ type: Date, default: null })
   holdUntil: Date | null;
+
+  /** Office user id (JWT sub) who placed the current hold, if any. */
+  @Prop({ trim: true, default: '' })
+  heldByUserId: string;
 }
 
 export const ProjectLotSchema = SchemaFactory.createForClass(ProjectLot);

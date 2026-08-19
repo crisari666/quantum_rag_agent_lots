@@ -2,13 +2,14 @@
 
 Prefix: **`/rag`**. Auth: `TOKEN` header (office JWT) unless noted.
 
-Levels: **admin** `0`, **subadmin** `1`, **content** `9`.
+Levels: **admin** `0`, **subadmin** `1`, **content** `9`, **externalAgent** `10`.
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
 | GET | `/projects/lot-inventory` | admin/subadmin/content | Hub: projects + status summaries |
 | GET | `/projects/:projectId/lots` | admin/subadmin/content | `?kind=lot\|commercial\|all` `&stage=stageKey` + summary. Sort: stageOrder, number. |
-| GET | `/projects/:projectId/lots/public` | **public** | `{ projectId, projectTitle, lots[{ number, area, price, status, kind, ventorName, holdUntil, stageKey, stageName, stageOrder }], summary }` (no soldBy). `?stage=` optional. Expired holds released on read. |
+| GET | `/projects/:projectId/lots/public` | **public** | `{ projectId, projectTitle, lots[{ id, number, area, price, status, kind, ventorName, holdUntil, stageKey, stageName, stageOrder }], summary }` (no soldBy). `?stage=` optional. Expired holds released on read. |
+| POST | `/projects/:projectId/lots/:lotId/hold` | externalAgent (10), ventor (4), admin | Body optional `{ ventorName?, holdUntil? }`. Available lots only. Default **72h** for external agents (custom ≥ 72h); **24h** for ventors. Stores `heldByUserId` from JWT. `409` if not available. |
 | POST | `/projects/:projectId/lots/generate` | admin/subadmin | Body optional overrides: nLots, nCommercialSpaces, baseLotArea, baseCommercialArea, defaultLotPrice, defaultCommercialPrice. Creates missing numbers only on stage `default` / General. |
 | PATCH | `/projects/:projectId/lots/:lotId` | admin/subadmin/content | area, price, status, ventorName, soldBy, holdUntil, stageKey, stageName, stageOrder |
 | PATCH | `/projects/:projectId/lots/bulk-status` | admin/subadmin/content | `{ lotIds, status, ventorName?, soldBy?, holdUntil? }` (hold defaults now+24h) |

@@ -9,12 +9,13 @@ import {
   Post,
   Query,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
   ApiConsumes,
@@ -28,6 +29,8 @@ import {
 import { Roles } from '../core/decorators/roles.decorator';
 import { OfficeLevelGuard } from '../core/guards/office-level.guard';
 import { OFFICE_USER_LEVEL } from '../core/constants/office-user-level.constants';
+import { HoldProjectLotDto } from './dto/hold-project-lot.dto';
+import { DesistProjectLotDto } from './dto/desist-project-lot.dto';
 import {
   BulkUpdateLotStatusDto,
   GenerateProjectLotsDto,
@@ -36,6 +39,9 @@ import {
 import { ProjectLotsService } from './project-lots.service';
 import { ProjectLotMapService } from './services/project-lot-map.service';
 import { ProjectLotKind } from './types/project-lot.enums';
+import { JwtUser } from '../core/decorators/jwt-user.decorator';
+import type { OfficeJwtPayload } from '../core/types/office-jwt-payload.type';
+import { resolveOfficeUserId } from '../core/utils/resolve-office-user-id';
 
 const ADMIN_LEVELS = [
   OFFICE_USER_LEVEL.admin,
@@ -46,6 +52,26 @@ const CONTENT_AND_ADMIN_LEVELS = [
   OFFICE_USER_LEVEL.admin,
   OFFICE_USER_LEVEL.subadmin,
   OFFICE_USER_LEVEL.content,
+] as const;
+
+const INVENTORY_VIEW_LEVELS = [
+  OFFICE_USER_LEVEL.admin,
+  OFFICE_USER_LEVEL.subadmin,
+  OFFICE_USER_LEVEL.commercialDirector,
+  OFFICE_USER_LEVEL.content,
+] as const;
+
+const DESIST_LEVELS = [
+  OFFICE_USER_LEVEL.admin,
+  OFFICE_USER_LEVEL.subadmin,
+  OFFICE_USER_LEVEL.commercialDirector,
+  OFFICE_USER_LEVEL.content,
+] as const;
+
+const LOT_HOLD_LEVELS = [
+  OFFICE_USER_LEVEL.externalAgent,
+  OFFICE_USER_LEVEL.ventor,
+  OFFICE_USER_LEVEL.admin,
 ] as const;
 
 @ApiTags('Project Lots')
@@ -100,7 +126,7 @@ export class ProjectLotsController {
   }
 
   @Get(':projectId/lots/map')
-  @Roles(...CONTENT_AND_ADMIN_LEVELS)
+  @Roles(...INVENTORY_VIEW_LEVELS)
   @ApiOperation({
     summary: 'Painted lot map GeoJSON joined with live inventory status',
   })
@@ -178,6 +204,29 @@ export class ProjectLotsController {
     return this.projectLotMapService.clearMap(projectId);
   }
 
+  @Delete(':projectId/lots')
+  @Roles(...CONTENT_AND_ADMIN_LEVELS)
+  @ApiOperation({
+    summary:
+      'Delete all inventory units (Excel/generated lots) for a project so a new file can be imported. Optional kind=lot|commercial|all.',
+  })
+  @ApiParam({ name: 'projectId' })
+  @ApiQuery({
+    name: 'kind',
+    required: false,
+    enum: ['lot', 'commercial', 'all'],
+  })
+  @ApiResponse({ status: 200, description: 'Inventory rows deleted.' })
+  public deleteInventory(
+    @Param('projectId') projectId: string,
+    @Query('kind') kind?: string,
+  ) {
+    return this.projectLotsService.deleteInventory(
+      projectId,
+      this.parseKindFilter(kind),
+    );
+  }
+
   @Post(':projectId/lots/generate')
   @Roles(...ADMIN_LEVELS)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -196,7 +245,7 @@ export class ProjectLotsController {
   }
 
   @Get(':projectId/lots')
-  @Roles(...CONTENT_AND_ADMIN_LEVELS)
+  @Roles(...INVENTORY_VIEW_LEVELS)
   @ApiOperation({ summary: 'List project lots with status summary' })
   @ApiParam({ name: 'projectId' })
   @ApiQuery({
@@ -230,8 +279,12 @@ export class ProjectLotsController {
   public bulkUpdateStatus(
     @Param('projectId') projectId: string,
     @Body() dto: BulkUpdateLotStatusDto,
+    @JwtUser() jwtUser: OfficeJwtPayload | undefined,
   ) {
-    return this.projectLotsService.bulkUpdateStatus(projectId, dto);
+    return this.projectLotsService.bulkUpdateStatus(projectId, dto, {
+      userId: resolveOfficeUserId(jwtUser),
+      level: jwtUser?.level,
+    });
   }
 
   @Post(':projectId/lots/import')
@@ -292,6 +345,137 @@ export class ProjectLotsController {
     );
   }
 
+  @Post(':projectId/lots/:lotId/hold')
+  @Roles(...LOT_HOLD_LEVELS)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @ApiOperation({
+    summary:
+      'Hold an available lot. External agents default 72h; ventors default 24h. Optional holdUntil must meet that minimum.',
+  })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'lotId' })
+  @ApiBody({ type: HoldProjectLotDto })
+  @ApiResponse({ status: 201, description: 'Lot placed on hold.' })
+  @ApiResponse({ status: 409, description: 'Lot is not available.' })
+  public holdLot(
+    @Param('projectId') projectId: string,
+    @Param('lotId') lotId: string,
+    @Body() dto: HoldProjectLotDto,
+    @JwtUser() jwtUser: OfficeJwtPayload | undefined,
+  ) {
+    return this.projectLotsService.holdAvailableLot({
+      projectId,
+      lotId,
+      actorUserId: resolveOfficeUserId(jwtUser),
+      actorLevel: jwtUser?.level,
+      dto: dto ?? {},
+    });
+  }
+
+  @Post(':projectId/lots/:lotId/unhold')
+  @Roles(...LOT_HOLD_LEVELS)
+  @ApiOperation({
+    summary:
+      'Release a hold. Same user who reserved the lot, or admin. Clears holdUntil, heldByUserId, ventorName.',
+  })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'lotId' })
+  @ApiResponse({ status: 201, description: 'Lot hold released.' })
+  @ApiResponse({ status: 409, description: 'Lot is not on hold.' })
+  public unholdLot(
+    @Param('projectId') projectId: string,
+    @Param('lotId') lotId: string,
+    @JwtUser() jwtUser: OfficeJwtPayload | undefined,
+  ) {
+    return this.projectLotsService.unholdHeldLot({
+      projectId,
+      lotId,
+      actorUserId: resolveOfficeUserId(jwtUser),
+      actorLevel: jwtUser?.level,
+    });
+  }
+
+  @Get(':projectId/lots/:lotId/history')
+  @Roles(...INVENTORY_VIEW_LEVELS)
+  @ApiOperation({ summary: 'Append-only status history for a lot' })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'lotId' })
+  public listLotHistory(
+    @Param('projectId') projectId: string,
+    @Param('lotId') lotId: string,
+  ) {
+    return this.projectLotsService.listLotHistory({ projectId, lotId });
+  }
+
+  @Post(':projectId/lots/:lotId/desist')
+  @Roles(...DESIST_LEVELS)
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        const name = (file.originalname ?? '').toLowerCase();
+        const mime = (file.mimetype ?? '').toLowerCase();
+        const ok =
+          name.endsWith('.pdf') ||
+          name.endsWith('.jpg') ||
+          name.endsWith('.jpeg') ||
+          name.endsWith('.png') ||
+          name.endsWith('.webp') ||
+          mime === 'application/pdf' ||
+          mime === 'image/jpeg' ||
+          mime === 'image/png' ||
+          mime === 'image/webp';
+        if (ok) callback(null, true);
+        else
+          callback(
+            new BadRequestException(
+              'Evidence files must be pdf, jpg, png, or webp',
+            ),
+            false,
+          );
+      },
+    }),
+  )
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @ApiOperation({
+    summary:
+      'Desist a sold lot: required evidence files, optional note. Returns lot to available.',
+  })
+  @ApiParam({ name: 'projectId' })
+  @ApiParam({ name: 'lotId' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+        note: { type: 'string' },
+      },
+      required: ['files'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Lot desisted.' })
+  @ApiResponse({ status: 409, description: 'Lot is not sold.' })
+  public desistLot(
+    @Param('projectId') projectId: string,
+    @Param('lotId') lotId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() dto: DesistProjectLotDto,
+    @JwtUser() jwtUser: OfficeJwtPayload | undefined,
+  ) {
+    return this.projectLotsService.desistSoldLot({
+      projectId,
+      lotId,
+      actorUserId: resolveOfficeUserId(jwtUser),
+      actorLevel: jwtUser?.level,
+      note: dto?.note,
+      files: files ?? [],
+    });
+  }
+
   @Patch(':projectId/lots/:lotId')
   @Roles(...CONTENT_AND_ADMIN_LEVELS)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -303,8 +487,12 @@ export class ProjectLotsController {
     @Param('projectId') projectId: string,
     @Param('lotId') lotId: string,
     @Body() dto: UpdateProjectLotDto,
+    @JwtUser() jwtUser: OfficeJwtPayload | undefined,
   ) {
-    return this.projectLotsService.updateLot(projectId, lotId, dto);
+    return this.projectLotsService.updateLot(projectId, lotId, dto, {
+      userId: resolveOfficeUserId(jwtUser),
+      level: jwtUser?.level,
+    });
   }
 
   private parseKindFilter(
