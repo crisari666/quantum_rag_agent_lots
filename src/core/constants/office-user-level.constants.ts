@@ -12,6 +12,7 @@ export const OFFICE_USER_LEVEL = {
   finance: 7,
   secretary: 8,
   content: 9,
+  externalAgent: 10,
 } as const;
 
 export type OfficeUserLevel =
