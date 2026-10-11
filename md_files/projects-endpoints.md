@@ -17,6 +17,10 @@ The HTTP prefix in this Nest app is typically **`/rag`** (e.g. `POST /rag/projec
 
 **Note:** Route order: `GET admin/test` before `GET :id` to avoid "admin" as id.
 
+### `shortDescription` (create & update)
+
+Plain-text teaser (no HTML) for cards/listings. `string`, optional, max **300**, trimmed, default `''`. PATCH with `""` clears it. Returned on all project reads. `description` stays the long rich-text (HTML) field.
+
 ### `amenitiesGroups` (create & update)
 
 Structured groups for the marketing UI: each group has an **icon** (string — icon id, name, or URL), a **title**, and **amenities** (array of human-readable labels). This is **separate** from **`amenities`**, which remains the list of Amenity **MongoDB ObjectIds** for catalog-linked data.
@@ -43,6 +47,7 @@ Structured groups for the marketing UI: each group has an **icon** (string — i
   "_id": "507f1f77bcf86cd799439011",
   "title": "Lote Norte",
   "description": "Residential lots with infrastructure and easy credit.",
+  "shortDescription": "Lotes campestres con vista al lago.",
   "location": "Ciudad de México",
   "city": "Ciudad de México",
   "state": "CDMX",
