@@ -426,6 +426,7 @@ export class ProjectsService {
       title: dto.title,
       ...(normalizedSlug !== undefined ? { slug: normalizedSlug } : {}),
       description: dto.description ?? '',
+      shortDescription: dto.shortDescription ?? '',
       location: dto.location,
       city: dto.city ?? '',
       state: dto.state ?? '',
@@ -474,6 +475,9 @@ export class ProjectsService {
       }
     }
     if (dto.description !== undefined) payload.description = dto.description;
+    if (dto.shortDescription !== undefined) {
+      payload.shortDescription = dto.shortDescription;
+    }
     if (dto.location !== undefined) payload.location = dto.location;
     if (dto.city !== undefined) payload.city = dto.city;
     if (dto.state !== undefined) payload.state = dto.state;

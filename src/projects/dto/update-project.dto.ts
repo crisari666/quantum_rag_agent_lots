@@ -23,6 +23,7 @@ import { ProjectLotOptionDto } from './project-lot-option.dto';
 
 const MAX_TITLE_LENGTH = 500;
 const MAX_DESCRIPTION_LENGTH = 5000;
+const MAX_SHORT_DESCRIPTION_LENGTH = 300;
 const MAX_LOCATION_LENGTH = 500;
 const MAX_CITY_STATE_COUNTRY_LENGTH = 200;
 const MAX_AMENITY_GROUPS = 50;
@@ -69,6 +70,16 @@ export class UpdateProjectDto {
   @IsString()
   @MaxLength(MAX_DESCRIPTION_LENGTH)
   description?: string;
+
+  @ApiPropertyOptional({
+    example: 'Lotes campestres con vista al lago, a 20 minutos de la ciudad.',
+    maxLength: MAX_SHORT_DESCRIPTION_LENGTH,
+    description: 'Plain-text teaser for cards and listings (no HTML).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_SHORT_DESCRIPTION_LENGTH)
+  shortDescription?: string;
 
   @ApiPropertyOptional({
     example: 'Ciudad de México',

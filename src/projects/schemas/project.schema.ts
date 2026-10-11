@@ -17,6 +17,10 @@ export class Project {
   @Prop({ trim: true, default: '' })
   description: string;
 
+  /** Plain-text teaser for cards and listings (no HTML). */
+  @Prop({ trim: true, default: '' })
+  shortDescription: string;
+
   @Prop({ required: true, trim: true })
   location: string;
 
