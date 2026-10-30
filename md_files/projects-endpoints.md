@@ -17,6 +17,20 @@ The HTTP prefix in this Nest app is typically **`/rag`** (e.g. `POST /rag/projec
 
 **Note:** Route order: `GET admin/test` before `GET :id` to avoid "admin" as id.
 
+### `externalDistribution` (partner-only projects)
+
+`boolean`, default `false`. Toggle: `PATCH /projects/:projectId/external-distribution/:value` (`true|false`, TOKEN + admin/subadmin/commercialDirector/content).
+
+`GET /projects` scope (combined with `enable`):
+
+| Request | Returns |
+|---------|---------|
+| default | `externalDistribution` false/missing only |
+| `Origin` (or `Referer` origin) in env `EXTERNAL_DISTRIBUTION_ORIGINS` | `externalDistribution: true` only |
+| `?distribution=all` + valid `TOKEN` header | all (admin); without TOKEN -> 403 |
+
+Env: `EXTERNAL_DISTRIBUTION_ORIGINS=https://partner-a.com,https://partner-b.com` (comma list, case/trailing-slash insensitive). Origin is browser-set, not a security boundary. Agent chat `list_projects` always uses internal scope.
+
 ### `shortDescription` (create & update)
 
 Plain-text teaser (no HTML) for cards/listings. `string`, optional, max **300**, trimmed, default `''`. PATCH with `""` clears it. Returned on all project reads. `description` stays the long rich-text (HTML) field.
