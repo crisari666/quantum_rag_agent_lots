@@ -10,7 +10,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectLotOptionDto } from './dto/project-lot-option.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
-import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
+import { ListProjectsInput } from './types/list-projects-input.type';
 import { ProjectDocumentField } from './types/project-document-field.type';
 import type { ProjectLegalRagDocumentField } from './types/legal-rag-document-field.type';
 import { ProjectAmenityGroup } from './types/project-amenity-group.type';
@@ -69,14 +69,20 @@ export class ProjectsService {
     return project;
   }
 
-  public async list(
-    enableFilter: ListProjectsEnableFilter,
-  ): Promise<ProjectDocument[]> {
+  public async list({
+    enableFilter,
+    distributionScope,
+  }: ListProjectsInput): Promise<ProjectDocument[]> {
     const filter: Record<string, unknown> = { deleted: false };
     if (enableFilter === 'true') {
       filter.enabled = true;
     } else if (enableFilter === 'false') {
       filter.enabled = false;
+    }
+    if (distributionScope === 'internal') {
+      filter.externalDistribution = { $ne: true };
+    } else if (distributionScope === 'external') {
+      filter.externalDistribution = true;
     }
     const projects = await this.projectModel
       .find(filter)
@@ -97,6 +103,27 @@ export class ProjectsService {
       .findOneAndUpdate(
         { _id: projectId, deleted: false },
         { enabled },
+        { returnDocument: 'after' },
+      )
+      .populate('amenities', 'title')
+      .exec();
+    if (!project) {
+      throw new NotFoundException(`Project with id ${projectId} not found`);
+    }
+    return project;
+  }
+
+  /**
+   * Marks a non-deleted project as partner-only (`externalDistribution`) or internal.
+   */
+  public async setExternalDistribution(
+    projectId: string,
+    externalDistribution: boolean,
+  ): Promise<ProjectDocument> {
+    const project = await this.projectModel
+      .findOneAndUpdate(
+        { _id: projectId, deleted: false },
+        { externalDistribution },
         { returnDocument: 'after' },
       )
       .populate('amenities', 'title')

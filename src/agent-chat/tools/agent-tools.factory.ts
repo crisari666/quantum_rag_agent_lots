@@ -139,7 +139,10 @@ export function createSearchProjectsTool(
 ): StructuredToolInterface {
   return tool(
     async () => {
-      const projects = await projectsService.list('true');
+      const projects = await projectsService.list({
+        enableFilter: 'true',
+        distributionScope: 'internal',
+      });
       if (projects.length === 0) {
         return LIST_PROJECTS_EMPTY_TOOL_OUTPUT;
       }

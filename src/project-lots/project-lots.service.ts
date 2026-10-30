@@ -96,7 +96,10 @@ export class ProjectLotsService implements OnModuleInit {
 
   public async listInventoryHub(): Promise<ProjectLotInventoryRow[]> {
     await this.releaseExpiredHolds();
-    const projects = await this.projectsService.list('all');
+    const projects = await this.projectsService.list({
+      enableFilter: 'all',
+      distributionScope: 'all',
+    });
     const summaries = await this.buildSummariesByProjectIds(
       projects.map((p) => String(p._id)),
     );
