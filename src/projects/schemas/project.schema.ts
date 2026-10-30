@@ -27,6 +27,13 @@ export class Project {
   @Prop({ default: false })
   enabled: boolean;
 
+  /**
+   * When true, the project is offered only by partner companies: hidden from default
+   * listings and returned only to origins in `EXTERNAL_DISTRIBUTION_ORIGINS`.
+   */
+  @Prop({ default: false })
+  externalDistribution: boolean;
+
   @Prop({ trim: true, default: '' })
   city: string;
 
