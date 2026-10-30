@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UploadedFiles,
   UseGuards,
@@ -43,6 +44,8 @@ import {
   MAX_REEL_VIDEO_FILE_SIZE_BYTES,
 } from './constants/image-upload.constants';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
+import { ProjectDistributionScopeService } from './services/project-distribution-scope.service';
+import type { Request } from 'express';
 import { ProjectLotsService } from '../project-lots/project-lots.service';
 import { OfficeLevelGuard } from '../core/guards/office-level.guard';
 import { Roles } from '../core/decorators/roles.decorator';
@@ -58,6 +61,7 @@ export class ProjectsController {
     private readonly projectDocumentUploadService: ProjectDocumentUploadService,
     @Inject(forwardRef(() => ProjectLotsService))
     private readonly projectLotsService: ProjectLotsService,
+    private readonly projectDistributionScopeService: ProjectDistributionScopeService,
   ) {}
 
   @Post()
@@ -95,6 +99,36 @@ export class ProjectsController {
     return this.projectsService.setEnabled(projectId, normalized === 'true');
   }
 
+  @Patch(':projectId/external-distribution/:value')
+  @UseGuards(OfficeLevelGuard)
+  @Roles(
+    OFFICE_USER_LEVEL.admin,
+    OFFICE_USER_LEVEL.subadmin,
+    OFFICE_USER_LEVEL.commercialDirector,
+    OFFICE_USER_LEVEL.content,
+  )
+  @ApiOperation({ summary: 'Mark a project as partner-only (external distribution) or internal' })
+  @ApiParam({ name: 'projectId', description: 'MongoDB ObjectId of the project' })
+  @ApiParam({ name: 'value', enum: ['true', 'false'] })
+  @ApiResponse({ status: 200, description: 'Project updated with new externalDistribution flag.' })
+  @ApiResponse({ status: 400, description: 'Invalid value.' })
+  @ApiResponse({ status: 404, description: 'Project not found.' })
+  public setProjectExternalDistribution(
+    @Param('projectId') projectId: string,
+    @Param('value') value: string,
+  ) {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized !== 'true' && normalized !== 'false') {
+      throw new BadRequestException(
+        'Path parameter "value" must be "true" or "false".',
+      );
+    }
+    return this.projectsService.setExternalDistribution(
+      projectId,
+      normalized === 'true',
+    );
+  }
+
   @Patch(':id')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   @ApiOperation({ summary: 'Update a project by ID' })
@@ -123,11 +157,36 @@ export class ProjectsController {
     description:
       'Omitted: same as true (enabled only). true: enabled only; false: disabled only; all: every non-deleted project',
   })
+  @ApiQuery({
+    name: 'distribution',
+    required: false,
+    enum: ['all'],
+    description:
+      'Omitted: internal projects only, or external-only for origins in EXTERNAL_DISTRIBUTION_ORIGINS. all: every project (requires TOKEN).',
+  })
   @ApiResponse({ status: 200, description: 'List of projects.' })
   @ApiResponse({ status: 400, description: 'Invalid enable query value.' })
-  public list(@Query('enable') enable?: string) {
+  @ApiResponse({ status: 403, description: 'distribution=all without valid TOKEN.' })
+  public list(
+    @Req() req: Request,
+    @Query('enable') enable?: string,
+    @Query('distribution') distribution?: string,
+  ) {
+    const distributionScope = this.projectDistributionScopeService.resolveScope({
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      requestedDistribution: distribution,
+      officeJwtUser: req.officeJwtUser,
+    });
+    return this.projectsService.list({
+      enableFilter: this.parseEnableFilter(enable),
+      distributionScope,
+    });
+  }
+
+  private parseEnableFilter(enable?: string): ListProjectsEnableFilter {
     if (enable === undefined || enable.trim() === '') {
-      return this.projectsService.list('true');
+      return 'true';
     }
     const normalized = enable.trim().toLowerCase();
     if (
@@ -139,7 +198,7 @@ export class ProjectsController {
         'Query "enable" must be one of: true, false, all (or omit for enabled only).',
       );
     }
-    return this.projectsService.list(normalized as ListProjectsEnableFilter);
+    return normalized;
   }
 
   @Get('lot-inventory')

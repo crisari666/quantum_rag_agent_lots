@@ -7,6 +7,7 @@ import { ProjectsService } from './projects.service';
 import { ImageCompressionService } from './services/image-compression.service';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ProjectDocumentUploadService } from './services/project-document-upload.service';
+import { ProjectDistributionScopeService } from './services/project-distribution-scope.service';
 import { ProjectLotsModule } from '../project-lots/project-lots.module';
 import { OfficeLevelGuard } from '../core/guards/office-level.guard';
 
@@ -21,6 +22,7 @@ import { OfficeLevelGuard } from '../core/guards/office-level.guard';
     ImageCompressionService,
     ProjectImageStorageService,
     ProjectDocumentUploadService,
+    ProjectDistributionScopeService,
     OfficeLevelGuard,
   ],
   exports: [ProjectsService, ImageCompressionService, ProjectImageStorageService],
