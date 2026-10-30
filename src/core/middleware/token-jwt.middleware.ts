@@ -39,24 +39,55 @@ export class TokenJwtMiddleware implements NestMiddleware {
     next: NextFunction,
   ): Promise<void> {
     if (this.shouldBypass(req)) {
+      if (this.isOptionalAuthRoute(req)) {
+        await this.attachOptionalJwtUser(req);
+      }
       next();
       return;
     }
-    const rawHeader = req.headers['token'];
-
-    const raw =
-      typeof rawHeader === 'string'
-        ? rawHeader
-        : Array.isArray(rawHeader)
-          ? (rawHeader[0] ?? '')
-          : '';
-    const token = extractRawJwt(raw);
+    const token = this.readTokenHeader(req);
     if (token === '') {
       throw new UnauthorizedException('TOKEN header is required');
     }
     const payload = await this.jwtVerificationService.verifyToken(token);
     req.officeJwtUser = payload;
     next();
+  }
+
+  private readTokenHeader(req: Request): string {
+    const rawHeader = req.headers['token'];
+    const raw =
+      typeof rawHeader === 'string'
+        ? rawHeader
+        : Array.isArray(rawHeader)
+          ? (rawHeader[0] ?? '')
+          : '';
+    return extractRawJwt(raw);
+  }
+
+  /** Public `GET /rag/projects` still reads a TOKEN when sent (admin `distribution=all`). */
+  private isOptionalAuthRoute(req: Request): boolean {
+    return (
+      req.method === 'GET' &&
+      this.normalizePathname(req.originalUrl) === `${RAG_PREFIX}/projects`
+    );
+  }
+
+  private async attachOptionalJwtUser(req: Request): Promise<void> {
+    const token = this.readTokenHeader(req);
+    if (token === '') return;
+    try {
+      req.officeJwtUser = await this.jwtVerificationService.verifyToken(token);
+    } catch {
+      req.officeJwtUser = undefined;
+    }
+  }
+
+  private normalizePathname(originalUrl: string): string {
+    const pathname = this.extractPathname(originalUrl);
+    return pathname.length > 1 && pathname.endsWith('/')
+      ? pathname.slice(0, -1)
+      : pathname;
   }
 
   private shouldBypass(req: Request): boolean {
