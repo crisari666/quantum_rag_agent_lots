@@ -45,8 +45,14 @@ async function bootstrap() {
   
   app.enableCors({
     origin: '*',
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'TOKEN'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'TOKEN',
+      'token',
+      'ngrok-skip-browser-warning',
+    ],
   });
   const defaultPort = 3000;
   const environmentPort = process.env.PORT_APP;
