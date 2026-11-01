@@ -17,16 +17,25 @@ The HTTP prefix in this Nest app is typically **`/rag`** (e.g. `POST /rag/projec
 
 **Note:** Route order: `GET admin/test` before `GET :id` to avoid "admin" as id.
 
-### `externalDistribution` (partner-only projects)
+### Distribution channels (`laCeibaDistribution` + `externalDistribution`)
 
-`boolean`, default `false`. Toggle: `PATCH /projects/:projectId/external-distribution/:value` (`true|false`, TOKEN + admin/subadmin/commercialDirector/content).
+Independent booleans (at least one must be true):
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `laCeibaDistribution` | `true` | Visible on La Ceiba consumers (site, ventors, agent) |
+| `externalDistribution` | `false` | Visible on partner origins in `EXTERNAL_DISTRIBUTION_ORIGINS` |
+
+Examples: La Ceiba only → `(true, false)`; both → `(true, true)`; external only → `(false, true)`.
+
+Update: `PATCH /projects/:projectId/distribution` body `{ laCeibaDistribution, externalDistribution }` (TOKEN + admin/subadmin/commercialDirector/content). Both `false` → 400.
 
 `GET /projects` scope (combined with `enable`):
 
 | Request | Returns |
 |---------|---------|
-| default | `externalDistribution` false/missing only |
-| `Origin` (or `Referer` origin) in env `EXTERNAL_DISTRIBUTION_ORIGINS` | `externalDistribution: true` only |
+| default | La Ceiba channel (`laCeibaDistribution` true, or legacy non-external docs) |
+| `Origin` (or `Referer` origin) in env `EXTERNAL_DISTRIBUTION_ORIGINS` | `externalDistribution: true` |
 | `?distribution=all` + valid `TOKEN` header | all (admin); without TOKEN -> 403 |
 
 Env: `EXTERNAL_DISTRIBUTION_ORIGINS=https://partner-a.com,https://partner-b.com` (comma list, case/trailing-slash insensitive). Origin is browser-set, not a security boundary. Agent chat `list_projects` always uses internal scope.
