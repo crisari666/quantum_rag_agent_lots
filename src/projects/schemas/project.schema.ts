@@ -28,8 +28,16 @@ export class Project {
   enabled: boolean;
 
   /**
-   * When true, the project is offered only by partner companies: hidden from default
-   * listings and returned only to origins in `EXTERNAL_DISTRIBUTION_ORIGINS`.
+   * Visible on La Ceiba consumers (site, ventors, agent). Independent of
+   * `externalDistribution` — both may be true. Legacy docs without this field
+   * are treated as La Ceiba when `externalDistribution` is not true.
+   */
+  @Prop({ default: true })
+  laCeibaDistribution: boolean;
+
+  /**
+   * Visible on partner origins listed in `EXTERNAL_DISTRIBUTION_ORIGINS`.
+   * Independent of `laCeibaDistribution` — both may be true.
    */
   @Prop({ default: false })
   externalDistribution: boolean;

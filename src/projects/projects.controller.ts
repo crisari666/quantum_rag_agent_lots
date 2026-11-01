@@ -44,6 +44,7 @@ import {
   MAX_REEL_VIDEO_FILE_SIZE_BYTES,
 } from './constants/image-upload.constants';
 import { ListProjectsEnableFilter } from './types/list-projects-enable-filter.type';
+import { SetProjectDistributionDto } from './dto/set-project-distribution.dto';
 import { ProjectDistributionScopeService } from './services/project-distribution-scope.service';
 import type { Request } from 'express';
 import { ProjectLotsService } from '../project-lots/project-lots.service';
@@ -99,7 +100,7 @@ export class ProjectsController {
     return this.projectsService.setEnabled(projectId, normalized === 'true');
   }
 
-  @Patch(':projectId/external-distribution/:value')
+  @Patch(':projectId/distribution')
   @UseGuards(OfficeLevelGuard)
   @Roles(
     OFFICE_USER_LEVEL.admin,
@@ -107,26 +108,21 @@ export class ProjectsController {
     OFFICE_USER_LEVEL.commercialDirector,
     OFFICE_USER_LEVEL.content,
   )
-  @ApiOperation({ summary: 'Mark a project as partner-only (external distribution) or internal' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @ApiOperation({
+    summary:
+      'Set La Ceiba and/or external partner distribution channels (at least one required)',
+  })
   @ApiParam({ name: 'projectId', description: 'MongoDB ObjectId of the project' })
-  @ApiParam({ name: 'value', enum: ['true', 'false'] })
-  @ApiResponse({ status: 200, description: 'Project updated with new externalDistribution flag.' })
-  @ApiResponse({ status: 400, description: 'Invalid value.' })
+  @ApiBody({ type: SetProjectDistributionDto })
+  @ApiResponse({ status: 200, description: 'Project distribution channels updated.' })
+  @ApiResponse({ status: 400, description: 'Validation failed or both channels false.' })
   @ApiResponse({ status: 404, description: 'Project not found.' })
-  public setProjectExternalDistribution(
+  public setProjectDistribution(
     @Param('projectId') projectId: string,
-    @Param('value') value: string,
+    @Body() body: SetProjectDistributionDto,
   ) {
-    const normalized = value?.trim().toLowerCase();
-    if (normalized !== 'true' && normalized !== 'false') {
-      throw new BadRequestException(
-        'Path parameter "value" must be "true" or "false".',
-      );
-    }
-    return this.projectsService.setExternalDistribution(
-      projectId,
-      normalized === 'true',
-    );
+    return this.projectsService.setDistributionChannels(projectId, body);
   }
 
   @Patch(':id')

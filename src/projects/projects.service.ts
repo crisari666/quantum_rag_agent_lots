@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -8,6 +9,7 @@ import { Model, Types } from 'mongoose';
 import { Project, ProjectDocument } from './schemas/project.schema';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { SetProjectDistributionDto } from './dto/set-project-distribution.dto';
 import { ProjectLotOptionDto } from './dto/project-lot-option.dto';
 import { ProjectImageStorageService } from './services/project-image-storage.service';
 import { ListProjectsInput } from './types/list-projects-input.type';
@@ -80,7 +82,13 @@ export class ProjectsService {
       filter.enabled = false;
     }
     if (distributionScope === 'internal') {
-      filter.externalDistribution = { $ne: true };
+      filter.$or = [
+        { laCeibaDistribution: true },
+        {
+          laCeibaDistribution: { $exists: false },
+          externalDistribution: { $ne: true },
+        },
+      ];
     } else if (distributionScope === 'external') {
       filter.externalDistribution = true;
     }
@@ -114,16 +122,24 @@ export class ProjectsService {
   }
 
   /**
-   * Marks a non-deleted project as partner-only (`externalDistribution`) or internal.
+   * Sets La Ceiba and/or external partner audience channels. At least one must be true.
    */
-  public async setExternalDistribution(
+  public async setDistributionChannels(
     projectId: string,
-    externalDistribution: boolean,
+    dto: SetProjectDistributionDto,
   ): Promise<ProjectDocument> {
+    if (!dto.laCeibaDistribution && !dto.externalDistribution) {
+      throw new BadRequestException(
+        'At least one of laCeibaDistribution or externalDistribution must be true.',
+      );
+    }
     const project = await this.projectModel
       .findOneAndUpdate(
         { _id: projectId, deleted: false },
-        { externalDistribution },
+        {
+          laCeibaDistribution: dto.laCeibaDistribution,
+          externalDistribution: dto.externalDistribution,
+        },
         { returnDocument: 'after' },
       )
       .populate('amenities', 'title')
