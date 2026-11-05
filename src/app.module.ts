@@ -11,6 +11,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { AgentChatModule } from './agent-chat/agent-chat.module';
 import { ProjectReleaseModule } from './project-release/project-release.module';
 import { ProjectLotsModule } from './project-lots/project-lots.module';
+import { ProjectExperienceModule } from './project-experience/project-experience.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ProjectLotsModule } from './project-lots/project-lots.module';
     AmenitiesModule,
     ProjectsModule,
     ProjectLotsModule,
+    ProjectExperienceModule,
     AgentChatModule,
     ProjectReleaseModule,
   ],

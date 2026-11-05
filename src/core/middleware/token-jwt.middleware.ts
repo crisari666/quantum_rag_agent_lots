@@ -11,6 +11,12 @@ const RAG_PREFIX = '/rag';
 const PATCH_PROJECT_UPDATE_REGEX = /^\/rag\/projects\/[^/]+$/;
 const PUBLIC_PROJECT_LOTS_REGEX = /^\/rag\/projects\/[^/]+\/lots\/public$/;
 const PUBLIC_PROJECT_LOTS_MAP_REGEX = /^\/rag\/projects\/[^/]+\/lots\/map\/public$/;
+const PUBLIC_PROJECT_EXPERIENCE_REGEX =
+  /^\/rag\/projects\/[^/]+\/experience\/public$/;
+const PUBLIC_PROJECT_EXPERIENCE_LOCATIONS_REGEX =
+  /^\/rag\/projects\/[^/]+\/experience\/locations\/public$/;
+const PUBLIC_PROJECT_EXPERIENCE_LOCATIONS_LIVE_REGEX =
+  /^\/rag\/projects\/[^/]+\/experience\/locations\/live\/public$/;
 const BEARER_PREFIX_REGEX = /^Bearer\s+/i;
 
 /**
@@ -112,6 +118,24 @@ export class TokenJwtMiddleware implements NestMiddleware {
       return true;
     }
     if (req.method === 'GET' && PUBLIC_PROJECT_LOTS_MAP_REGEX.test(normalized)) {
+      return true;
+    }
+    if (
+      req.method === 'GET' &&
+      PUBLIC_PROJECT_EXPERIENCE_REGEX.test(normalized)
+    ) {
+      return true;
+    }
+    if (
+      req.method === 'GET' &&
+      PUBLIC_PROJECT_EXPERIENCE_LOCATIONS_REGEX.test(normalized)
+    ) {
+      return true;
+    }
+    if (
+      req.method === 'GET' &&
+      PUBLIC_PROJECT_EXPERIENCE_LOCATIONS_LIVE_REGEX.test(normalized)
+    ) {
       return true;
     }
     if (req.method === 'PATCH' && PATCH_PROJECT_UPDATE_REGEX.test(normalized)) {
