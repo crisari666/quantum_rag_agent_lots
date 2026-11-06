@@ -7,7 +7,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { extname } from 'path';
 import * as sharpNamespace from 'sharp';
-import { UPLOADS_STATIC_URL_PREFIX } from '../../config/upload-bucket.constants';
 import { ProjectImageStorageService } from '../../projects/services/project-image-storage.service';
 import { ProjectsService } from '../../projects/projects.service';
 import {
@@ -29,6 +28,10 @@ import {
 } from '../schemas/project-experience-resource.schema';
 import { ProjectExperienceAssetType } from '../types/project-experience.enums';
 import { compressPanoramaUpload } from '../utils/compress-panorama-upload.util';
+import {
+  buildExperiencePublicFileUrl,
+  isPublicHttpUrl,
+} from '../utils/experience-public-file-url.util';
 import type { ExperienceAssetPublicType } from '../types/project-experience-manifest.type';
 
 @Injectable()
@@ -46,10 +49,12 @@ export class ProjectExperienceAssetsService {
     projectId: string,
   ): Promise<ProjectExperienceAssetDocument[]> {
     await this.projectsService.getById(projectId);
-    return this.assetModel
+    const rows = await this.assetModel
       .find({ projectId: new Types.ObjectId(projectId) })
       .sort({ sortOrder: 1, createdAt: 1 })
       .exec();
+    await Promise.all(rows.map((row) => this.persistPublicUrls(row)));
+    return rows;
   }
 
   public async listVisible(
@@ -110,7 +115,11 @@ export class ProjectExperienceAssetsService {
       name: (params.name?.trim() || file.originalname || fileName).slice(0, 200),
       type: params.type,
       fileName,
+      url: buildExperiencePublicFileUrl(fileName),
       thumbnailFileName,
+      thumbnailUrl: thumbnailFileName
+        ? buildExperiencePublicFileUrl(thumbnailFileName)
+        : '',
       position: {
         longitude,
         latitude,
@@ -154,13 +163,24 @@ export class ProjectExperienceAssetsService {
     const count = await this.assetModel.countDocuments({
       projectId: new Types.ObjectId(projectId),
     });
+    const url = buildExperiencePublicFileUrl(resource.fileName);
+    const thumbnailUrl = resource.thumbnailFileName
+      ? buildExperiencePublicFileUrl(resource.thumbnailFileName)
+      : '';
+    if (resource.url !== url || resource.thumbnailUrl !== thumbnailUrl) {
+      resource.url = url;
+      resource.thumbnailUrl = thumbnailUrl;
+      await resource.save();
+    }
     return this.assetModel.create({
       projectId: new Types.ObjectId(projectId),
       resourceId: resource._id,
       name: (dto.name?.trim() || resource.name).slice(0, 200),
       type: resource.type,
       fileName: resource.fileName,
+      url,
       thumbnailFileName: resource.thumbnailFileName,
+      thumbnailUrl,
       position: {
         longitude: dto.longitude,
         latitude: dto.latitude,
@@ -249,9 +269,15 @@ export class ProjectExperienceAssetsService {
       id: String(asset._id),
       name: asset.name,
       type: asset.type,
-      url: `${UPLOADS_STATIC_URL_PREFIX}/${fileName}`,
+      url: buildExperiencePublicFileUrl(
+        isPublicHttpUrl(asset.url) ? asset.url : fileName,
+      ),
       thumbnailUrl: thumbnailFileName
-        ? `${UPLOADS_STATIC_URL_PREFIX}/${thumbnailFileName}`
+        ? buildExperiencePublicFileUrl(
+            isPublicHttpUrl(asset.thumbnailUrl)
+              ? asset.thumbnailUrl
+              : thumbnailFileName,
+          )
         : null,
       position: {
         longitude: asset.position.longitude,
@@ -268,6 +294,19 @@ export class ProjectExperienceAssetsService {
       },
       sortOrder: asset.sortOrder,
     };
+  }
+
+  private async persistPublicUrls(
+    asset: ProjectExperienceAssetDocument,
+  ): Promise<void> {
+    const url = buildExperiencePublicFileUrl(asset.fileName);
+    const thumbnailUrl = asset.thumbnailFileName
+      ? buildExperiencePublicFileUrl(asset.thumbnailFileName)
+      : '';
+    if (asset.url === url && asset.thumbnailUrl === thumbnailUrl) return;
+    asset.url = url;
+    asset.thumbnailUrl = thumbnailUrl;
+    await asset.save();
   }
 
   private async findOwnedAsset(

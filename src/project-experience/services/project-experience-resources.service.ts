@@ -26,6 +26,7 @@ import {
 } from '../schemas/project-experience-resource.schema';
 import { ProjectExperienceAssetType } from '../types/project-experience.enums';
 import { compressPanoramaUpload } from '../utils/compress-panorama-upload.util';
+import { buildExperiencePublicFileUrl } from '../utils/experience-public-file-url.util';
 
 @Injectable()
 export class ProjectExperienceResourcesService {
@@ -42,9 +43,29 @@ export class ProjectExperienceResourcesService {
     projectId: string,
   ): Promise<ProjectExperienceResourceDocument[]> {
     await this.projectsService.getById(projectId);
-    return this.resourceModel
+    const rows = await this.resourceModel
       .find({ projectId: new Types.ObjectId(projectId) })
       .sort({ createdAt: -1 })
+      .exec();
+    await Promise.all(rows.map((row) => this.persistPublicUrls(row)));
+    return rows;
+  }
+
+  /**
+   * Loads the model_3d library files a place can pin in the public manifest.
+   */
+  public async findModelsByIds(
+    projectId: string,
+    resourceIds: readonly string[],
+  ): Promise<ProjectExperienceResourceDocument[]> {
+    const ids = resourceIds.filter((id) => Types.ObjectId.isValid(id));
+    if (ids.length === 0) return [];
+    return this.resourceModel
+      .find({
+        projectId: new Types.ObjectId(projectId),
+        type: ProjectExperienceAssetType.model_3d,
+        _id: { $in: ids.map((id) => new Types.ObjectId(id)) },
+      })
       .exec();
   }
 
@@ -103,7 +124,11 @@ export class ProjectExperienceResourcesService {
       name: (params.name?.trim() || file.originalname || fileName).slice(0, 200),
       type: params.type,
       fileName,
+      url: buildExperiencePublicFileUrl(fileName),
       thumbnailFileName,
+      thumbnailUrl: thumbnailFileName
+        ? buildExperiencePublicFileUrl(thumbnailFileName)
+        : '',
       sizeBytes: file.size,
       mimeType: file.mimetype,
     });
@@ -137,6 +162,19 @@ export class ProjectExperienceResourcesService {
     }
     await resource.deleteOne();
     return { deleted: true, deletedPlacementIds };
+  }
+
+  private async persistPublicUrls(
+    resource: ProjectExperienceResourceDocument,
+  ): Promise<void> {
+    const url = buildExperiencePublicFileUrl(resource.fileName);
+    const thumbnailUrl = resource.thumbnailFileName
+      ? buildExperiencePublicFileUrl(resource.thumbnailFileName)
+      : '';
+    if (resource.url === url && resource.thumbnailUrl === thumbnailUrl) return;
+    resource.url = url;
+    resource.thumbnailUrl = thumbnailUrl;
+    await resource.save();
   }
 
   private async prepareUploadFile(

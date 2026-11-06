@@ -53,8 +53,16 @@ export class ProjectExperienceAsset {
   @Prop({ required: true, trim: true })
   fileName: string;
 
+  /** Absolute URL copied from the library resource (or set on direct upload). */
+  @Prop({ trim: true, default: '' })
+  url: string;
+
   @Prop({ trim: true, default: '' })
   thumbnailFileName: string;
+
+  /** Absolute thumbnail URL copied from the library resource. */
+  @Prop({ trim: true, default: '' })
+  thumbnailUrl: string;
 
   @Prop({ type: ExperienceAssetPosition, required: true })
   position: ExperienceAssetPosition;

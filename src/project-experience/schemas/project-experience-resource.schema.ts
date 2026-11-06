@@ -24,8 +24,16 @@ export class ProjectExperienceResource {
   @Prop({ required: true, trim: true })
   fileName: string;
 
+  /** Absolute URL of the library file. Saved when the resource is uploaded. */
+  @Prop({ trim: true, default: '' })
+  url: string;
+
   @Prop({ trim: true, default: '' })
   thumbnailFileName: string;
+
+  /** Absolute URL of the thumbnail, when one exists. */
+  @Prop({ trim: true, default: '' })
+  thumbnailUrl: string;
 
   @Prop({ default: 0, min: 0 })
   sizeBytes: number;
