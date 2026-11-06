@@ -37,6 +37,10 @@ export class ExperienceRoadsStyle {
 
   @Prop({ default: 0.95, min: 0.2, max: 1 })
   opacity: number;
+
+  /** solid hides the casing, double keeps the outline, dashed is one broken line. */
+  @Prop({ type: String, enum: ['solid', 'double', 'dashed'], default: 'solid' })
+  line: 'solid' | 'double' | 'dashed';
 }
 
 @Schema({ _id: false })

@@ -40,6 +40,11 @@ export class UpdateExperienceRoadsStyleDto {
   @Max(1)
   @Type(() => Number)
   opacity?: number;
+
+  @ApiPropertyOptional({ enum: ['solid', 'double', 'dashed'] })
+  @IsOptional()
+  @IsEnum(['solid', 'double', 'dashed'])
+  line?: 'solid' | 'double' | 'dashed';
 }
 
 export class UpdateExperienceMapSettingsDto {
@@ -200,7 +205,7 @@ export class AmenityCategoryDto {
   @ApiPropertyOptional({ example: '#38BDF8' })
   @IsOptional()
   @IsString()
-  @Matches(/^#[0-9A-Fa-f]{6}$/)
+  @Matches(/^$|^#[0-9A-Fa-f]{6}$/)
   color?: string;
 }
 
