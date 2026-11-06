@@ -90,6 +90,7 @@ export type ProjectExperienceManifestType = Readonly<{
       opacity: number;
       line: 'solid' | 'double' | 'dashed';
     }>;
+    availableLotColor: string;
     initialCamera: ExperienceCameraType;
   }>;
   layers: Readonly<{

@@ -73,12 +73,14 @@ export class ProjectExperienceService {
         buildings3DEnabled: false,
         satelliteEnabled: true,
         fogEnabled: true,
+        showSceneTitles: true,
         roadsStyle: {
           color: '#38bdf8',
           width: 3,
           opacity: 0.95,
           line: 'solid',
         },
+        availableLotColor: '#15803d',
       },
       layers: {
         lots: true,
@@ -374,6 +376,9 @@ export class ProjectExperienceService {
           opacity: settings.roadsStyle?.opacity ?? 0.95,
           line: settings.roadsStyle?.line ?? 'solid',
         },
+        availableLotColor: this.resolveAvailableLotColor(
+          settings.availableLotColor,
+        ),
         initialCamera: {
           longitude: settings.centerLongitude ?? 0,
           latitude: settings.centerLatitude ?? 0,
@@ -466,6 +471,11 @@ export class ProjectExperienceService {
       })),
     );
     return [...placedAssets, ...linkedAssets];
+  }
+
+  private resolveAvailableLotColor(value: string | undefined): string {
+    const trimmed = value?.trim() ?? '';
+    return /^#[0-9A-Fa-f]{6}$/.test(trimmed) ? trimmed.toLowerCase() : '#15803d';
   }
 
   private normalizeAmenityCategories(

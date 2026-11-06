@@ -118,11 +118,24 @@ export class UpdateExperienceMapSettingsDto {
   @IsBoolean()
   fogEnabled?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Studio player shows the scene title beside the controls',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showSceneTitles?: boolean;
+
   @ApiPropertyOptional({ type: UpdateExperienceRoadsStyleDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateExperienceRoadsStyleDto)
   roadsStyle?: UpdateExperienceRoadsStyleDto;
+
+  @ApiPropertyOptional({ example: '#15803d' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^#[0-9A-Fa-f]{6}$/)
+  availableLotColor?: string;
 }
 
 export class UpdateExperienceLayersDto {

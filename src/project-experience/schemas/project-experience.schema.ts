@@ -78,8 +78,16 @@ export class ExperienceMapSettings {
   @Prop({ default: true })
   fogEnabled: boolean;
 
+  /** Studio player shows the scene title beside the controls. */
+  @Prop({ default: true })
+  showSceneTitles: boolean;
+
   @Prop({ type: ExperienceRoadsStyle, default: () => ({}) })
   roadsStyle: ExperienceRoadsStyle;
+
+  /** Fill color for lots whose status is available. */
+  @Prop({ trim: true, default: '#15803d' })
+  availableLotColor: string;
 }
 
 @Schema({ _id: false })
