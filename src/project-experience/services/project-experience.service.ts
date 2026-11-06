@@ -14,7 +14,11 @@ import {
   ProjectExperienceDocument,
 } from '../schemas/project-experience.schema';
 import { ProjectExperienceStatus } from '../types/project-experience.enums';
-import type { ProjectExperienceManifestType } from '../types/project-experience-manifest.type';
+import type {
+  ExperienceAssetPublicType,
+  ExperienceLocationPublicType,
+  ProjectExperienceManifestType,
+} from '../types/project-experience-manifest.type';
 import {
   DEFAULT_EXPERIENCE_POI,
   type ExperiencePoiSettingsType,
@@ -27,7 +31,9 @@ import {
 } from '../types/project-location.enums';
 import { PoiDiscoveryService } from './poi-discovery.service';
 import { ProjectExperienceAssetsService } from './project-experience-assets.service';
+import { ProjectExperienceResourcesService } from './project-experience-resources.service';
 import { ProjectLocationsService } from './project-locations.service';
+import { buildLinkedResourcePublicAssets } from '../utils/linked-resource-public-asset.util';
 
 @Injectable()
 export class ProjectExperienceService {
@@ -37,6 +43,7 @@ export class ProjectExperienceService {
     private readonly projectsService: ProjectsService,
     private readonly projectLocationsService: ProjectLocationsService,
     private readonly projectExperienceAssetsService: ProjectExperienceAssetsService,
+    private readonly projectExperienceResourcesService: ProjectExperienceResourcesService,
     private readonly poiDiscoveryService: PoiDiscoveryService,
   ) {}
 
@@ -70,6 +77,7 @@ export class ProjectExperienceService {
           color: '#38bdf8',
           width: 3,
           opacity: 0.95,
+          line: 'solid',
         },
       },
       layers: {
@@ -106,6 +114,7 @@ export class ProjectExperienceService {
             color: '#38bdf8',
             width: 3,
             opacity: 0.95,
+            line: 'solid',
           }),
           ...roadsStyle,
         };
@@ -334,10 +343,15 @@ export class ProjectExperienceService {
     );
     const assets =
       await this.projectExperienceAssetsService.listVisible(projectId);
-    const publicAssets = await Promise.all(
+    const placedAssets = await Promise.all(
       assets.map((asset) =>
         this.projectExperienceAssetsService.toPublicAsset(asset),
       ),
+    );
+    const publicAssets = await this.appendLinkedResourceAssets(
+      projectId,
+      locations,
+      placedAssets,
     );
     const settings = experience.settings;
     const sortedScenes = [...experience.scenes].sort(
@@ -358,6 +372,7 @@ export class ProjectExperienceService {
           color: settings.roadsStyle?.color ?? '#38bdf8',
           width: settings.roadsStyle?.width ?? 3,
           opacity: settings.roadsStyle?.opacity ?? 0.95,
+          line: settings.roadsStyle?.line ?? 'solid',
         },
         initialCamera: {
           longitude: settings.centerLongitude ?? 0,
@@ -421,6 +436,36 @@ export class ProjectExperienceService {
         ? experience.publishedAt.toISOString()
         : new Date().toISOString(),
     };
+  }
+
+  /**
+   * Adds a model_3d asset at each place that links a library GLB.
+   */
+  private async appendLinkedResourceAssets(
+    projectId: string,
+    locations: readonly ExperienceLocationPublicType[],
+    placedAssets: readonly ExperienceAssetPublicType[],
+  ): Promise<ExperienceAssetPublicType[]> {
+    const resourceIds = locations
+      .map((location) => location.linkedResourceId.trim())
+      .filter((resourceId) => resourceId.length > 0);
+    if (resourceIds.length === 0) return [...placedAssets];
+    const resources =
+      await this.projectExperienceResourcesService.findModelsByIds(
+        projectId,
+        resourceIds,
+      );
+    const linkedAssets = buildLinkedResourcePublicAssets(
+      locations,
+      resources.map((resource) => ({
+        id: String(resource._id),
+        name: resource.name,
+        type: resource.type,
+        fileName: resource.fileName,
+        thumbnailFileName: resource.thumbnailFileName,
+      })),
+    );
+    return [...placedAssets, ...linkedAssets];
   }
 
   private normalizeAmenityCategories(

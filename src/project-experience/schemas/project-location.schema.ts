@@ -22,6 +22,30 @@ export class ProjectLocationMedia {
 }
 
 @Schema({ _id: false })
+export class ProjectLocationRouteGeometry {
+  @Prop({ type: String, enum: ['LineString'], required: true })
+  type: 'LineString';
+
+  @Prop({ type: [[Number]], required: true })
+  coordinates: number[][];
+}
+
+@Schema({ _id: false })
+export class ProjectLocationRoute {
+  @Prop({ type: String, enum: ['driving'], required: true })
+  profile: 'driving';
+
+  @Prop({ required: true })
+  distanceMeters: number;
+
+  @Prop({ required: true })
+  durationSeconds: number;
+
+  @Prop({ type: ProjectLocationRouteGeometry, required: true })
+  geometry: ProjectLocationRouteGeometry;
+}
+
+@Schema({ _id: false })
 export class ProjectLocationGeometry {
   @Prop({
     type: String,
@@ -65,6 +89,30 @@ export class ProjectLocation {
   @Prop({ trim: true, default: '' })
   panoramaAssetId: string;
 
+  /** Placed map source (experience asset) this place describes. Empty when unset. */
+  @Prop({ trim: true, default: '' })
+  linkedAssetId: string;
+
+  /** Library resource this place uses. Empty when unset. Does not move the place. */
+  @Prop({ trim: true, default: '' })
+  linkedResourceId: string;
+
+  /** Meters above the terrain for a linked 3D model. */
+  @Prop({ type: Number, default: 0 })
+  modelAltitude: number;
+
+  /** Degrees [pitch, heading, roll] for a linked 3D model. */
+  @Prop({ type: [Number], default: () => [0, 0, 0] })
+  modelRotation: number[];
+
+  /** Color of the driving line from the project to this place. */
+  @Prop({ trim: true, default: '#e07a3d' })
+  routeColor: string;
+
+  /** solid is one line, double keeps an outline, dashed is a broken line. */
+  @Prop({ type: String, enum: ['solid', 'double', 'dashed'], default: 'solid' })
+  routeLine: 'solid' | 'double' | 'dashed';
+
   @Prop({ type: ProjectLocationGeometry, required: true })
   geometry: ProjectLocationGeometry;
 
@@ -97,6 +145,14 @@ export class ProjectLocation {
 
   @Prop({ type: Number, default: null })
   estimatedTravelMinutes: number | null;
+
+  /** Driving line from the project to this place. Null when Directions did not return one. */
+  @Prop({ type: ProjectLocationRoute, default: null })
+  route: ProjectLocationRoute | null;
+
+  /** When false, the stored driving line stays hidden. */
+  @Prop({ default: true })
+  showRoute: boolean;
 
   @Prop({ default: true })
   isVisible: boolean;

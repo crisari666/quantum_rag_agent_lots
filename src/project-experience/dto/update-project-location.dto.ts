@@ -1,12 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -54,6 +57,55 @@ export class UpdateProjectLocationDto {
   @IsString()
   @MaxLength(24)
   panoramaAssetId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Placed map source asset id. Empty clears the link.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  linkedAssetId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Library resource id. Empty clears the link. Does not move the place.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  linkedResourceId?: string;
+
+  @ApiPropertyOptional({ description: 'Meters above the terrain for a linked 3D model' })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  modelAltitude?: number;
+
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'Degrees [pitch, heading, roll] for a linked 3D model',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(3)
+  @ArrayMaxSize(3)
+  @IsNumber({}, { each: true })
+  modelRotation?: number[];
+
+  @ApiPropertyOptional({ example: '#e07a3d' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^#[0-9a-fA-F]{6}$/)
+  routeColor?: string;
+
+  @ApiPropertyOptional({ enum: ['solid', 'double', 'dashed'] })
+  @IsOptional()
+  @IsEnum(['solid', 'double', 'dashed'])
+  routeLine?: 'solid' | 'double' | 'dashed';
+
+  @ApiPropertyOptional({ description: 'Hide the driving line without deleting it' })
+  @IsOptional()
+  @IsBoolean()
+  showRoute?: boolean;
 
   @ApiPropertyOptional({
     type: [String],

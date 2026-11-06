@@ -88,6 +88,8 @@ export class ProjectExperiencePublicController {
           categoryKey: location.categoryKey,
           categoryLabel: location.categoryLabel,
           panoramaAssetId: location.panoramaAssetId,
+          linkedAssetId: location.linkedAssetId,
+          linkedResourceId: location.linkedResourceId,
           importance: location.importance,
           distanceMeters: location.distanceMeters,
           estimatedTravelMinutes: location.estimatedTravelMinutes,

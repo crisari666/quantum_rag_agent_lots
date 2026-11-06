@@ -33,6 +33,8 @@ import {
   extractRepresentativePoint,
 } from '../utils/geo-distance.util';
 import { PoiDiscoveryService } from './poi-discovery.service';
+import { MapboxDrivingRouteService } from './mapbox-driving-route.service';
+import type { ProjectLocationRoute } from '../types/project-location-route.type';
 import type { PoiDiscoveryResult } from '../types/poi-discovery-result.type';
 
 @Injectable()
@@ -43,6 +45,7 @@ export class ProjectLocationsService {
     private readonly projectsService: ProjectsService,
     private readonly poiDiscoveryService: PoiDiscoveryService,
     private readonly projectImageStorageService: ProjectImageStorageService,
+    private readonly drivingRouteService: MapboxDrivingRouteService,
   ) {}
 
   public async listByProject(
@@ -104,6 +107,11 @@ export class ProjectLocationsService {
       project.lng,
       dto.geometry,
     );
+    const driving = await this.resolveDrivingRoute(
+      project.lat,
+      project.lng,
+      dto.geometry,
+    );
     const source = dto.source ?? ProjectLocationSource.manual;
     const doc = await this.locationModel.create({
       projectId: new Types.ObjectId(projectId),
@@ -115,7 +123,6 @@ export class ProjectLocationsService {
       source,
       sourceId: dto.sourceId?.trim() ?? '',
       importance: dto.importance ?? ProjectLocationImportance.medium,
-      estimatedTravelMinutes: dto.estimatedTravelMinutes ?? null,
       isVisible: dto.isVisible ?? true,
       sortOrder: dto.sortOrder ?? 0,
       attribution:
@@ -126,6 +133,10 @@ export class ProjectLocationsService {
             ? '© OpenStreetMap contributors'
             : ''),
       distanceMeters,
+      roadDistanceMeters: driving.roadDistanceMeters,
+      estimatedTravelMinutes:
+        driving.estimatedTravelMinutes ?? dto.estimatedTravelMinutes ?? null,
+      route: driving.route,
       isVerified: false,
       verifiedAt: null,
       verifiedByUserId: '',
@@ -155,6 +166,33 @@ export class ProjectLocationsService {
     if (dto.panoramaAssetId !== undefined) {
       location.panoramaAssetId = dto.panoramaAssetId.trim();
     }
+    if (dto.linkedAssetId !== undefined) {
+      location.linkedAssetId = dto.linkedAssetId.trim();
+    }
+    if (dto.linkedResourceId !== undefined) {
+      location.linkedResourceId = dto.linkedResourceId.trim();
+    }
+    if (dto.modelAltitude !== undefined) {
+      location.modelAltitude = Number.isFinite(dto.modelAltitude)
+        ? dto.modelAltitude
+        : 0;
+    }
+    if (dto.modelRotation !== undefined) {
+      location.modelRotation = this.readModelRotation(dto.modelRotation);
+    }
+    if (dto.linkedResourceId !== undefined && !dto.linkedResourceId.trim()) {
+      location.modelAltitude = 0;
+      location.modelRotation = [0, 0, 0];
+    }
+    if (dto.routeColor !== undefined) {
+      location.routeColor = dto.routeColor.trim().toLowerCase();
+    }
+    if (dto.routeLine !== undefined) {
+      location.routeLine = dto.routeLine;
+    }
+    if (dto.showRoute !== undefined) {
+      location.showRoute = dto.showRoute;
+    }
     if (dto.gallery !== undefined) {
       location.media = location.media ?? { cover: '', gallery: [], video: '' };
       location.media.gallery = dto.gallery.map((name) =>
@@ -180,7 +218,10 @@ export class ProjectLocationsService {
     }
     if (dto.isVisible !== undefined) location.isVisible = dto.isVisible;
     if (dto.sortOrder !== undefined) location.sortOrder = dto.sortOrder;
-    if (dto.geometry !== undefined) {
+    if (
+      dto.geometry !== undefined &&
+      this.hasGeometryChanged(location.geometry, dto.geometry)
+    ) {
       this.assertValidGeometry(dto.geometry);
       location.geometry = dto.geometry as ProjectLocation['geometry'];
       location.distanceMeters = this.computeDistanceFromProject(
@@ -188,6 +229,16 @@ export class ProjectLocationsService {
         project.lng,
         dto.geometry,
       );
+      const driving = await this.resolveDrivingRoute(
+        project.lat,
+        project.lng,
+        dto.geometry,
+      );
+      location.route = driving.route;
+      location.roadDistanceMeters = driving.roadDistanceMeters;
+      if (driving.estimatedTravelMinutes != null) {
+        location.estimatedTravelMinutes = driving.estimatedTravelMinutes;
+      }
       location.isVerified = false;
       location.verifiedAt = null;
       location.verifiedByUserId = '';
@@ -322,6 +373,11 @@ export class ProjectLocationsService {
         project.lng,
         geometry,
       );
+      const driving = await this.resolveDrivingRoute(
+        project.lat,
+        project.lng,
+        geometry,
+      );
       const doc = await this.locationModel.create({
         projectId: new Types.ObjectId(params.projectId),
         name,
@@ -334,6 +390,9 @@ export class ProjectLocationsService {
         sourceId: '',
         importance: ProjectLocationImportance.medium,
         distanceMeters,
+        roadDistanceMeters: driving.roadDistanceMeters,
+        estimatedTravelMinutes: driving.estimatedTravelMinutes,
+        route: driving.route,
         isVisible: true,
         isVerified: false,
         verifiedAt: null,
@@ -369,6 +428,15 @@ export class ProjectLocationsService {
       categoryKey,
       categoryLabel,
       panoramaAssetId: row.panoramaAssetId ?? '',
+      linkedAssetId: row.linkedAssetId ?? '',
+      linkedResourceId: row.linkedResourceId ?? '',
+      modelAltitude: Number(row.modelAltitude) || 0,
+      modelRotation: this.readModelRotation(row.modelRotation ?? [0, 0, 0]),
+      routeColor: row.routeColor || '#e07a3d',
+      routeLine:
+        row.routeLine === 'double' || row.routeLine === 'dashed'
+          ? row.routeLine
+          : 'solid',
       geometry: {
         type: row.geometry.type,
         coordinates: row.geometry.coordinates,
@@ -376,6 +444,7 @@ export class ProjectLocationsService {
       importance: row.importance,
       distanceMeters: row.distanceMeters,
       estimatedTravelMinutes: row.estimatedTravelMinutes,
+      route: row.showRoute === false ? null : this.toPublicRoute(row.route),
       media: {
         cover,
         gallery,
@@ -432,6 +501,14 @@ export class ProjectLocationsService {
     return `${UPLOADS_STATIC_URL_PREFIX}projects/${trimmed}`;
   }
 
+  private readModelRotation(values: readonly number[]): [number, number, number] {
+    return [
+      Number(values[0]) || 0,
+      Number(values[1]) || 0,
+      Number(values[2]) || 0,
+    ];
+  }
+
   private sanitizeGalleryFileName(fileName: string): string {
     const trimmed = fileName.trim();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/')) {
@@ -459,6 +536,49 @@ export class ProjectLocationsService {
     return location;
   }
 
+  private async resolveDrivingRoute(
+    originLatitude: number,
+    originLongitude: number,
+    geometry: { readonly type: string; readonly coordinates: unknown },
+  ): Promise<{
+    route: ProjectLocationRoute | null;
+    roadDistanceMeters: number | null;
+    estimatedTravelMinutes: number | null;
+  }> {
+    const route = await this.drivingRouteService.buildRoute({
+      originLatitude,
+      originLongitude,
+      geometry,
+    });
+    if (!route) {
+      return {
+        route: null,
+        roadDistanceMeters: null,
+        estimatedTravelMinutes: null,
+      };
+    }
+    return {
+      route,
+      roadDistanceMeters: route.distanceMeters,
+      estimatedTravelMinutes: Math.max(1, Math.round(route.durationSeconds / 60)),
+    };
+  }
+
+  private toPublicRoute(
+    route: ProjectLocationRoute | null | undefined,
+  ): ProjectLocationRoute | null {
+    if (!route || route.geometry?.type !== 'LineString') return null;
+    return {
+      profile: 'driving',
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      geometry: {
+        type: 'LineString',
+        coordinates: route.geometry.coordinates,
+      },
+    };
+  }
+
   private computeDistanceFromProject(
     projectLat: number,
     projectLng: number,
@@ -472,6 +592,30 @@ export class ProjectLocationsService {
       toLat: point.latitude,
       toLng: point.longitude,
     });
+  }
+
+  private hasGeometryChanged(
+    current: { readonly type: string; readonly coordinates: unknown },
+    next: { readonly type: string; readonly coordinates: unknown },
+  ): boolean {
+    if (current.type !== next.type) return true;
+    return !this.coordinatesMatch(current.coordinates, next.coordinates);
+  }
+
+  private coordinatesMatch(left: unknown, right: unknown): boolean {
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (!Array.isArray(left) || !Array.isArray(right)) return false;
+      if (left.length !== right.length) return false;
+      return left.every((value, index) =>
+        this.coordinatesMatch(value, right[index]),
+      );
+    }
+    const leftNumber = Number(left);
+    const rightNumber = Number(right);
+    if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+      return leftNumber === rightNumber;
+    }
+    return left === right;
   }
 
   private assertValidGeometry(geometry: {

@@ -21,6 +21,7 @@ import {
   ProjectLocation,
   ProjectLocationSchema,
 } from './schemas/project-location.schema';
+import { MapboxDrivingRouteService } from './services/mapbox-driving-route.service';
 import { MapboxPoiDiscoveryService } from './services/mapbox-poi-discovery.service';
 import { PoiDiscoveryService } from './services/poi-discovery.service';
 import { ProjectExperienceAssetsService } from './services/project-experience-assets.service';
@@ -60,6 +61,7 @@ import { ProjectLocationsService } from './services/project-locations.service';
     ProjectExperienceAssetsService,
     ProjectExperienceResourcesService,
     MapboxPoiDiscoveryService,
+    MapboxDrivingRouteService,
     PoiDiscoveryService,
     OfficeLevelGuard,
   ],

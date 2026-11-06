@@ -1,5 +1,6 @@
 import type { ExperiencePoiSettingsType } from './experience-poi-settings.type';
 import type { ProjectLocationCategory } from './project-location.enums';
+import type { ProjectLocationRoute } from './project-location-route.type';
 
 export type ExperienceCameraType = Readonly<{
   longitude: number;
@@ -49,6 +50,12 @@ export type ExperienceLocationPublicType = Readonly<{
   categoryKey: string;
   categoryLabel: string;
   panoramaAssetId: string;
+  linkedAssetId: string;
+  linkedResourceId: string;
+  modelAltitude: number;
+  modelRotation: readonly [number, number, number];
+  routeColor: string;
+  routeLine: 'solid' | 'double' | 'dashed';
   geometry: Readonly<{
     type: 'Point' | 'LineString' | 'Polygon';
     coordinates: unknown;
@@ -56,6 +63,7 @@ export type ExperienceLocationPublicType = Readonly<{
   importance: string;
   distanceMeters: number | null;
   estimatedTravelMinutes: number | null;
+  route: ProjectLocationRoute | null;
   media: Readonly<{
     cover: string | null;
     gallery: readonly string[];
@@ -80,6 +88,7 @@ export type ProjectExperienceManifestType = Readonly<{
       color: string;
       width: number;
       opacity: number;
+      line: 'solid' | 'double' | 'dashed';
     }>;
     initialCamera: ExperienceCameraType;
   }>;
