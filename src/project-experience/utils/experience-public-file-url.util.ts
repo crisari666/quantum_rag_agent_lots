@@ -3,12 +3,23 @@ import { UPLOADS_STATIC_URL_PREFIX } from '../../config/upload-bucket.constants'
 const PUBLIC_BASE_ENV = 'EXPERIENCE_UPLOADS_PUBLIC_BASE';
 
 /**
- * True when the stored address can be loaded by a browser.
- * A typo such as htts:// must fall through to the file name.
+ * True when the stored address can be loaded by a remote browser.
+ * Localhost / loopback and non-http schemes fall through to the file name.
  */
 export function isPublicHttpUrl(value: string): boolean {
   const trimmed = value.trim();
-  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return false;
+  }
+  try {
+    const host = new URL(trimmed).hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 export function buildExperiencePublicFileUrl(fileName: string): string {
