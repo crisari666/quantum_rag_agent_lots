@@ -156,9 +156,9 @@ export class ProjectsController {
   @ApiQuery({
     name: 'distribution',
     required: false,
-    enum: ['all'],
+    enum: ['all', 'external', 'internal'],
     description:
-      'Omitted: internal projects only, or external-only for origins in EXTERNAL_DISTRIBUTION_ORIGINS. all: every project (requires TOKEN).',
+      'Omitted: internal projects only, or external-only for origins in EXTERNAL_DISTRIBUTION_ORIGINS. external|internal: force that channel (no TOKEN). all: every project (requires TOKEN).',
   })
   @ApiResponse({ status: 200, description: 'List of projects.' })
   @ApiResponse({ status: 400, description: 'Invalid enable query value.' })

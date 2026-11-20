@@ -9,6 +9,8 @@ import {
 import type { ProjectDistributionScope } from '../types/project-distribution-scope.type';
 
 const DISTRIBUTION_ALL = 'all';
+const DISTRIBUTION_EXTERNAL = 'external';
+const DISTRIBUTION_INTERNAL = 'internal';
 
 type ResolveDistributionScopeInput = {
   readonly origin?: string;
@@ -20,6 +22,7 @@ type ResolveDistributionScopeInput = {
 /**
  * Decides which projects (internal / external / all) a listing request may see.
  * Origin-based segmentation relies on browser-set headers; it is not a security boundary.
+ * Explicit `distribution=external|internal` is for server-to-server callers (e.g. GTower catalog).
  */
 @Injectable()
 export class ProjectDistributionScopeService {
@@ -32,8 +35,9 @@ export class ProjectDistributionScopeService {
   }
 
   /**
-   * `distribution=all` requires a verified office JWT; otherwise allowlisted origins get
-   * external projects and everyone else gets internal projects.
+   * `distribution=all` requires a verified office JWT.
+   * `distribution=external|internal` select that scope without JWT.
+   * Otherwise allowlisted origins get external projects; everyone else gets internal.
    */
   public resolveScope(input: ResolveDistributionScopeInput): ProjectDistributionScope {
     const requested = input.requestedDistribution?.trim().toLowerCase() ?? '';
@@ -42,6 +46,12 @@ export class ProjectDistributionScopeService {
         throw new ForbiddenException('Query "distribution=all" requires a valid TOKEN header');
       }
       return 'all';
+    }
+    if (requested === DISTRIBUTION_EXTERNAL) {
+      return 'external';
+    }
+    if (requested === DISTRIBUTION_INTERNAL) {
+      return 'internal';
     }
     const requestOrigin = input.origin ?? this.extractOriginFromReferer(input.referer);
     if (requestOrigin && this.externalOrigins.has(normalizeOrigin(requestOrigin))) {
