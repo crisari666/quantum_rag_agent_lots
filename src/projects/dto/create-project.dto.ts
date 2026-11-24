@@ -2,11 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -134,16 +136,28 @@ export class CreateProjectDto {
   priceSellUsd?: number;
 
   @ApiPropertyOptional({
-    example: 8,
+    example: 500_000,
     minimum: 0,
-    description:
-      'Separation for the development (e.g. meters between lots); meaning is product-defined.',
+    description: 'Separation fee in COP paid to reserve a lot.',
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Type(() => Number)
   separation?: number;
+
+  @ApiPropertyOptional({
+    example: 36,
+    minimum: 1,
+    maximum: 120,
+    description: 'Maximum number of monthly installments after the separation fee.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  @Type(() => Number)
+  maxInstallments?: number;
 
   @ApiPropertyOptional({
     type: [ProjectLotOptionDto],

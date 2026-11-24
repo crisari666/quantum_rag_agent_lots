@@ -69,10 +69,16 @@ export class Project {
   priceSellUsd: number;
 
   /**
-   * Separation measure for the development (e.g. meters between lots); product-defined unit.
+   * Separation fee in COP paid to reserve a lot.
    */
   @Prop({ default: 0 })
   separation: number;
+
+  /**
+   * Maximum number of monthly installments after the separation fee.
+   */
+  @Prop({ default: 36 })
+  maxInstallments: number;
 
   /**
    * Available lot variants: area, COP sale `price`, optional `priceUsd` reference.

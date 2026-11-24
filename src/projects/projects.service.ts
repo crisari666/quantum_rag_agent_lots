@@ -479,6 +479,7 @@ export class ProjectsService {
       priceSell: dto.priceSell,
       priceSellUsd: dto.priceSellUsd ?? 0,
       separation: dto.separation ?? 0,
+      maxInstallments: dto.maxInstallments ?? 36,
       lotOptions: this.normalizeLotOptions(dto.lotOptions),
       commissionPercentage: dto.commissionPercentage,
       commissionValue: dto.commissionValue,
@@ -532,6 +533,9 @@ export class ProjectsService {
       payload.priceSellUsd = dto.priceSellUsd;
     }
     if (dto.separation !== undefined) payload.separation = dto.separation;
+    if (dto.maxInstallments !== undefined) {
+      payload.maxInstallments = dto.maxInstallments;
+    }
     if (dto.lotOptions !== undefined) {
       payload.lotOptions = this.normalizeLotOptions(dto.lotOptions);
     }

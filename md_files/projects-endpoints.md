@@ -40,6 +40,8 @@ Update: `PATCH /projects/:projectId/distribution` body `{ laCeibaDistribution, e
 
 Env: `EXTERNAL_DISTRIBUTION_ORIGINS=https://partner-a.com,https://partner-b.com` (comma list, case/trailing-slash insensitive). Origin is browser-set, not a security boundary. Agent chat `list_projects` always uses internal scope.
 
+**Lovable / partner SPAs:** put the site’s browser `Origin` in that env (e.g. custom domain `https://gtower.cloud`, or `https://<app>.lovable.app` for the Lovable publish/preview host). Restart omega_rag after changing `.env`. Projects must also have `externalDistribution: true`.
+
 ### `shortDescription` (create & update)
 
 Plain-text teaser (no HTML) for cards/listings. `string`, optional, max **300**, trimmed, default `''`. PATCH with `""` clears it. Returned on all project reads. `description` stays the long rich-text (HTML) field.
